@@ -1,0 +1,60 @@
+{
+  "name": "@ai-factory/web-search",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Agent-agnostic web search: a SearXNG-backed search core shared by a CLI, an MCP server, and a pi extension wrapper.",
+  "keywords": [
+    "pi-package",
+    "web-search",
+    "searxng",
+    "mcp"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "extensions"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "@sinclair/typebox": "*"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "@sinclair/typebox": "^0.34.49",
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "eslint": "^9.0.0",
+    "globals": "^17.5.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.8.0",
+    "vitest": "^2.1.9"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/ extensions/",
+    "lint:fix": "eslint src/ extensions/ --fix",
+    "format": "prettier --write src/ extensions/",
+    "typecheck": "tsgo -p tsconfig.json",
+    "build": "tsgo -p tsconfig.build.json",
+    "validate": "npm run typecheck && npm run lint && npm run test"
+  }
+}

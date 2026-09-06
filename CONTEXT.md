@@ -1,0 +1,52 @@
+# CONTEXT
+
+Glossary for the `@ai-factory/web-search` package. Canonical terms, sharpened
+during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker).
+
+## Terms
+
+- **Search** — one call to the shared core's `search(query, options)`. A search
+  always queries the configured SearXNG instance and always persists a **search
+  session** on disk. Never returns partial success as an error.
+- **Search session** — the on-disk record of one **search**, identified by a
+  `sessionId`. Stored under the configured **store root** in a directory named
+  `<sessionId>` containing a `session.json` envelope plus one JSON file per
+  **result**. A session is immutable once written; it is never updated in place.
+- **Session id** — `<8 hex>-<query slug>`, e.g. `3f9a2c7e-what-is-kubernetes`.
+  The human-readable slug makes sessions browsable without opening them.
+- **Store root** — the base directory for **search sessions**, resolved from
+  config (default `$XDG_DATA_HOME/web-search/sessions/`). CLI, MCP server and
+  pi wrapper share it, so a session written by one surface can be read by another.
+- **Result** — one normalized search hit, the core's `SearchResult`: `title`,
+  `url`, `snippet` (SearXNG's `content` excerpt), `publishedDate`, `score`,
+  `engines`, `category`. Everything an agent or human needs to decide whether to
+  open the URL.
+- **Snippet** — the result excerpt shown to humans and agents. Intentionally not
+  the full page: full detail lives in the session on disk, reachable via
+  `readSession` / `--session`.
+- **Unresponsive engine** — a SearXNG backend that failed non-fatally during a
+  search. Surfaced as data (`unresponsiveEngines`), never as an error.
+- **Search options** — the core's `SearchOptions` (camelCase). The CLI passes
+  everything; MCP and the pi wrapper expose an opinionated subset of the same
+  options, so surfaces stay consistent with each other and with the core.
+- **Core** — the shared module (`src/index.ts`) all surfaces consume: `search`,
+  `renderMarkdown`, `readSession`, config resolution, typed errors. The deep
+  seam of the package; surfaces are thin.
+- **Surface** — one of the three consumers of the **core**: the CLI, the MCP
+  server, or the pi extension wrapper. A surface formats/transports core output;
+  it does not reimplement search logic.
+- **Configuration** — resolved by `loadConfig()` from (highest precedence)
+  environment variables, the XDG config file
+  (`$XDG_CONFIG_HOME/web-search/config.json`), and defaults. Non-secret values
+  only; API keys stay in the environment.
+
+## Decisions
+
+- Every **search** persists a **session** — storage is wired into the core from
+  the start, not an opt-in (issue #5).
+- Markdown output renders human-usable fields only (`title`, `url`, `snippet`,
+  `engine`, `category`); `--json` carries the full structured result set (issue #5, #8).
+- The pi wrapper surfaces the `sessionId` in its collapsed render so the user
+  can open full details later (issue #10).
+- MCP's first build-out ships a single `web_search` tool; a `search_details`
+  full-record tool is deferred until the MCP server is in use (issue #9).
