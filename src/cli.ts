@@ -13,6 +13,8 @@
 import { config as loadDotenv } from "dotenv";
 import type { SearchOptions, SearchResponse, SessionRecord } from "./index.js";
 import { loadConfig, readSession, renderMarkdown, search, SearchError } from "./index.js";
+import type { AiAnswer } from "./agent.js";
+import { answerQuery, modelFromConfig, summarizeSession } from "./agent.js";
 
 loadDotenv({ path: `${process.cwd()}/.env` });
 
@@ -33,6 +35,7 @@ Flags:
   --safesearch <0|1|2> 0 off, 1 moderate, 2 strict
   --page <n>           result page number
   --session <id>       show a persisted search session instead of searching
+  --use-ai             answer via the LangChain agentic loop (plan -> search -> summarize)
   --json               structured output (default: markdown)
   --help               show this help
 
@@ -43,10 +46,11 @@ type ParsedArgs = {
 	query?: string;
 	sessionId?: string;
 	json?: boolean;
+	useAi?: boolean;
 	options: SearchOptions;
 };
 
-const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session"> = {
+const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useAi"> = {
 	"--categories": "categories",
 	"--engines": "engines",
 	"--language": "language",
@@ -55,6 +59,7 @@ const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session"> = {
 	"--page": "pageNo",
 	"--json": "json",
 	"--session": "session",
+	"--use-ai": "useAi",
 };
 
 function fail(message: string): never {
@@ -73,6 +78,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 	const positionals: string[] = [];
 	let help = false;
 	let json = false;
+	let useAi = false;
 	let sessionId: string | undefined;
 
 	for (let i = 0; i < argv.length; i += 1) {
@@ -83,6 +89,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 		}
 		if (arg === "--json") {
 			json = true;
+			continue;
+		}
+		if (arg === "--use-ai") {
+			useAi = true;
 			continue;
 		}
 		const key = FLAG_KEYS[arg];
@@ -144,7 +154,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 		fail("missing query");
 	}
 
-	return { help, query, sessionId, json, options };
+	return { help, query, sessionId, json, useAi, options };
 }
 
 function printUsage(): void {
@@ -175,11 +185,45 @@ async function run(): Promise<number> {
 		try {
 			const config = await loadConfig();
 			const record: SessionRecord = await readSession(parsed.sessionId, config.storeDir);
+			if (parsed.useAi) {
+				const model = modelFromConfig(config);
+				const summary = await summarizeSession(model, record, record.query);
+				if (parsed.json) {
+					const payload = { ...record, summary };
+					process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+				} else {
+					process.stdout.write(`${summary}\n`);
+				}
+				return 0;
+			}
 			const response: SearchResponse = { ...record };
 			if (parsed.json) {
 				process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
 			} else {
 				process.stdout.write(`${renderMarkdown(response, MARKDOWN_DISPLAY_CAP)}\n`);
+			}
+			return 0;
+		} catch (err) {
+			const message =
+				err instanceof SearchError ? err.message : `unexpected error: ${(err as Error).message}`;
+			process.stderr.write(`error: ${message}\n`);
+			return 1;
+		}
+	}
+
+	if (parsed.useAi) {
+		try {
+			const hasOverrides = Object.keys(parsed.options).length > 0;
+			const answer: AiAnswer = await answerQuery(parsed.query as string, {
+				...(hasOverrides ? { overrides: parsed.options } : {}),
+			});
+			for (const [engine, reason] of answer.unresponsiveEngines) {
+				process.stderr.write(`warning: engine ${engine} unresponsive (${reason})\n`);
+			}
+			if (parsed.json) {
+				process.stdout.write(`${JSON.stringify(answer, null, 2)}\n`);
+			} else {
+				process.stdout.write(`**Session:** ${answer.sessionId}\n\n${answer.summary}\n`);
 			}
 			return 0;
 		} catch (err) {

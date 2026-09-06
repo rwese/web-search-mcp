@@ -125,3 +125,66 @@ export async function searchRaw(
     clearTimeout(timer);
   }
 }
+
+/** One engine entry from the SearXNG /config endpoint. */
+export type InstanceEngine = {
+  name?: string;
+  enabled?: boolean;
+  categories?: string[];
+  [key: string]: unknown;
+};
+
+/** The subset of the SearXNG /config endpoint we use for AI plan validation. */
+export type InstanceConfig = {
+  categories?: string[];
+  engines?: InstanceEngine[];
+  [key: string]: unknown;
+};
+
+/**
+ * Fetch the SearXNG instance /config (no auth needed). Used to constrain the
+ * AI planner's categories/engines picks to what this instance actually has.
+ */
+export async function fetchInstanceConfig(
+  baseUrl: string,
+  timeoutMs: number,
+): Promise<InstanceConfig> {
+  const url = new URL("/config", baseUrl.replace(/\/+$/, ""));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    let response: Response;
+    try {
+      response = await fetch(url, { signal: controller.signal });
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        throw new SearchTimeout(`Instance config timed out after ${timeoutMs}ms`);
+      }
+      throw new SearchUnavailable(`Failed to reach SearXNG at ${baseUrl}: ${(err as Error).message}`);
+    }
+    if (!response.ok) {
+      throw new SearxngError(
+        `SearXNG /config returned HTTP ${response.status}`,
+        response.status,
+      );
+    }
+    return (await response.json()) as InstanceConfig;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Names of enabled engines from an instance /config. */
+export function enabledEngineNames(config: InstanceConfig): string[] {
+  if (!Array.isArray(config.engines)) return [];
+  return config.engines
+    .filter((engine) => engine?.enabled && typeof engine.name === "string")
+    .map((engine) => engine.name as string);
+}
+
+/** Categories from an instance /config. */
+export function instanceCategories(config: InstanceConfig): string[] {
+  return Array.isArray(config.categories)
+    ? config.categories.filter((c): c is string => typeof c === "string")
+    : [];
+}
