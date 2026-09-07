@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { renderDoctorReport, runDoctor, type DoctorReport } from "../src/doctor.js";
-import type { Config } from "../src/config.js";
+import { renderDoctorReport, runDoctor, type DoctorReport } from "../../src/diagnostics/doctor.js";
+import type { Config } from "../../src/infra/config.js";
 
 const CONFIG: Config = {
 	searxngUrl: "https://search.example/",

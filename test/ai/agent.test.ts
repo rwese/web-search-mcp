@@ -6,9 +6,9 @@ import {
 	validateFootnotes,
 	validatePlan,
 	modelFromConfig,
-} from "../src/agent.js";
-import type { Config } from "../src/config.js";
-import type { SessionLike } from "../src/agent.js";
+} from "../../src/ai/agent.js";
+import type { Config } from "../../src/infra/config.js";
+import type { SessionLike } from "../../src/ai/agent.js";
 
 const SESSION: SessionLike = {
 	sessionId: "abc12345-test",

@@ -1,5 +1,5 @@
-import type { SearchOptions, SearchResult } from "./types.js";
-import { SearxngError, SearchTimeout, SearchUnavailable } from "./types.js";
+import type { SearchOptions, SearchResult } from "../core/types.js";
+import { SearxngError, SearchTimeout, SearchUnavailable } from "../core/errors.js";
 import { toLogger } from "./debug.js";
 
 /** Strip logger instances out of options before debug logging. */

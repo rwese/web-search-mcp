@@ -1,4 +1,4 @@
-# Agentic loop (`--use-ai`) — src/agent.ts
+# Agentic loop (`--use-ai`) — src/ai/agent.ts
 
 Flow: `planQuery` steers the search → core `search()` runs and persists the
 session → `summarizeSession` answers the original query from the session.
@@ -46,8 +46,8 @@ The vault secret is **multiline** (key on line 1, marker comment after) —
 `head -1` is required; the full value is an invalid header. Then:
 
 ```sh
-XDG_DATA_HOME=/tmp/smoke node dist/cli.js "<query>" --use-ai          # full loop
-XDG_DATA_HOME=/tmp/smoke node dist/cli.js --session <id> --use-ai     # summarize stored
+XDG_DATA_HOME=/tmp/smoke node dist/surfaces/cli/cli.js "<query>" --use-ai          # full loop
+XDG_DATA_HOME=/tmp/smoke node dist/surfaces/cli/cli.js --session <id> --use-ai     # summarize stored
 ```
 
 Expect exit 0, a `**Session:**` line, unresponsive-engine warnings on stderr

@@ -15,14 +15,17 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
 
 ## Layout
 
-- `src/index.ts` — core: `search`, `readSession`, `renderMarkdown`,
-  `loadConfig`, typed errors. The deep seam; surfaces stay thin.
-- `src/agent.ts` — `--use-ai` loop: `planQuery`, `summarizeSession`,
+- `src/index.ts` — barrel only, no logic. The deep seam is `src/core/`;
+  surfaces stay thin.
+- `src/core/` — `search`, `session`, `types`, `errors`, `markdown`.
+- `src/infra/` — `config`, `debug`, `searxng` (wire client).
+- `src/ai/agent.ts` — `--use-ai` loop: `planQuery`, `summarizeSession`,
   `answerQuery`. Prompt and footnote rules live here.
-- `src/cli.ts`, `src/mcp.ts` — surfaces. `src/searxng.ts` (wire client),
-  `src/session.ts`, `src/config.ts`, `src/markdown.ts`, `src/types.ts`.
-- `extensions/` — pi wrapper (typebox params, pi-tui rendering).
-- `test/` — vitest, mirrors `src/`.
+- `src/diagnostics/doctor.ts` — `--doctor` setup checks.
+- `src/surfaces/cli/` (`cli`, `args`), `src/surfaces/mcp/` (`mcp`, `server`,
+  `http`, `stdio`, `constants`), `src/surfaces/pi/` (`tool`).
+- `extensions/` — thin pi wrapper around `src/surfaces/pi/tool.ts`.
+- `test/` — vitest, mirrors `src/` (`core/`, `infra/`, `ai/`, `diagnostics/`).
 
 ## Config & secrets
 
@@ -42,7 +45,7 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
 - `docs/agents/issue-tracker.md` — Forgejo tracker ops (API recipes, claiming,
   frontier). Reach when working issues.
 - `docs/agents/agentic-loop.md` — the `--use-ai` architecture, footnote
-  contract, and live smoke-test recipe. Reach when touching `src/agent.ts` or
+  contract, and live smoke-test recipe. Reach when touching `src/ai/agent.ts` or
   running AI tests.
 - `research/*` branches, `test/` — prior API findings (SearXNG, MCP SDK, pi
   contract) and expected behavior; read before changing a seam.

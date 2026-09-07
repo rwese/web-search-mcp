@@ -12,16 +12,16 @@
  */
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadConfig as defaultLoadConfig, openaiApiKey, type Config } from "./config.js";
-import { toLogger, type DebugLogger } from "./debug.js";
+import { loadConfig as defaultLoadConfig, openaiApiKey, type Config } from "../infra/config.js";
+import { toLogger, type DebugLogger } from "../infra/debug.js";
 import {
   enabledEngineNames,
   fetchInstanceConfig,
   instanceCategories,
   searchRaw,
   type InstanceConfig,
-} from "./searxng.js";
-import { SearchError } from "./types.js";
+} from "../infra/searxng.js";
+import { SearchError } from "../core/errors.js";
 
 export type DoctorCheck = {
   name: string;

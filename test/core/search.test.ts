@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { normalizeResult, buildQueryParams, type RawSearchResult } from "../src/searxng.js";
-import { renderMarkdown } from "../src/markdown.js";
-import { slugify, createSessionId } from "../src/session.js";
-import type { SearchResponse } from "../src/types.js";
+import { normalizeResult, buildQueryParams, type RawSearchResult } from "../../src/infra/searxng.js";
+import { renderMarkdown } from "../../src/core/markdown.js";
+import { slugify, createSessionId } from "../../src/core/session.js";
+import type { SearchResponse } from "../../src/core/types.js";
 
 describe("normalizeResult", () => {
     it("maps raw SearXNG fields to the SearchResult contract", () => {

@@ -15,13 +15,13 @@ import { ChatOpenAI } from "@langchain/openai";
 import { randomUUID } from "node:crypto";
 import type { BaseMessage, MessageContent } from "@langchain/core/messages";
 import { z } from "zod";
-import type { Config } from "./config.js";
-import { openaiApiKey } from "./config.js";
-import { createDebugLogger, resolveDebug, toLogger, type DebugLogger } from "./debug.js";
-import { search } from "./index.js";
-import { enabledEngineNames, fetchInstanceConfig, instanceCategories } from "./searxng.js";
-import type { SearchOptions, SearchResult } from "./types.js";
-import { SearchError } from "./types.js";
+import type { Config } from "../infra/config.js";
+import { openaiApiKey } from "../infra/config.js";
+import { createDebugLogger, resolveDebug, toLogger, type DebugLogger } from "../infra/debug.js";
+import { search } from "../core/search.js";
+import { enabledEngineNames, fetchInstanceConfig, instanceCategories } from "../infra/searxng.js";
+import type { SearchOptions, SearchResult } from "../core/types.js";
+import { SearchError } from "../core/errors.js";
 
 /** Minimal session shape the summarizer needs (SearchResponse and SessionRecord both fit). */
 export type SessionLike = {
@@ -366,7 +366,7 @@ export async function answerQuery(query: string, aiOptions: AiAnswerOptions = {}
 	if (!query.trim()) {
 		throw new SearchError("query must not be empty");
 	}
-	const { loadConfig } = await import("./config.js");
+  const { loadConfig } = await import("../infra/config.js");
 	const config = await loadConfig();
 	const debugOpt = aiOptions.debug;
 	const debug: DebugLogger =

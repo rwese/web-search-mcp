@@ -1,16 +1,15 @@
 # @ai-factory/web-search
 
-SearXNG-backed web search with a shared core consumed by three thin surfaces:
-a CLI (`web-search`), an MCP server (`web-search-mcp`, stdio + streamable HTTP),
-and a pi extension wrapper (`extensions/`).
+Web search powered by your own [SearXNG](https://docs.searxng.org/) instance.
+Search from the terminal, from an AI agent (MCP), or from pi — every search is
+saved as a reusable **session** on disk.
 
-Every search queries the configured SearXNG instance and persists an immutable
-**search session** on disk. Any surface can later re-read a session written by
-another surface.
+> **New here?** Install → search → done. The [CLI guide](#cli--usage) below
+> covers everything, with example output for every command.
 
-## Quickstart — human
+## Install
 
-Prerequisites: Node.js >= 20, `pnpm`, a reachable SearXNG instance URL.
+Prerequisites: Node.js >= 20, `pnpm`, and a reachable SearXNG instance URL.
 
 ```sh
 git clone ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git
@@ -20,44 +19,233 @@ cp .env.example .env   # then set SEARXNG_URL (required)
 pnpm build
 ```
 
-Search (markdown shows top 10, full data via `--json`):
+Check that everything works:
 
 ```sh
-node dist/cli.js "what is kubernetes"                  # search
-node dist/cli.js "what is kubernetes" --json           # full structured response
-node dist/cli.js --session 3f9a2c7e-what-is-kubernetes # re-read a persisted session
-node dist/cli.js "best gnocchi recipe" --use-ai        # AI answer: plan -> search -> summarize
-node dist/cli.js --doctor                              # validate setup (SearXNG, engines, LLM)
+node dist/surfaces/cli/cli.js --doctor
 ```
 
-CLI flags: `--categories <csv>`, `--engines <csv>`, `--language <code>`,
-`--time-range day|month|year`, `--safesearch 0|1|2`, `--page <n>`,
-`--session <id>`, `--use-ai`, `--debug`, `--doctor`, `--json`, `--help`.
-Exit codes: `0` ok (even empty results; for `--doctor`: all checks passed),
-`1` runtime error (or `--doctor` found issues), `2` usage.
-A query and `--session` are mutually exclusive; `--doctor` takes neither.
+```
+web-search doctor
+✓ config: SEARXNG_URL=https://search.wze.nope.at timeout=10000ms store=/home/you/.local/share/web-search/sessions
+✓ store-dir: /home/you/.local/share/web-search/sessions writable
+✓ searxng: https://search.wze.nope.at reachable (32 categories, 86 enabled engines)
+✓ engines: 86 enabled: wikipedia, arxiv, github, stackoverflow, youtube, ...
+✓ search: probe query "test" returned 36 result(s) (3 unresponsive engine(s))
+✓ llm: not configured (skipped)
+6/6 checks passed
+```
 
-`--debug` enables verbose stderr logging — search request URLs and timing,
-session persistence, and (with `--use-ai`) the planner's plan decision, the
-summarizer's tool calls, and model-call counts. All debug output goes to
-stderr, never stdout, so `--json` output stays machine-readable. Debug can
-also be enabled for any surface via `WEB_SEARCH_DEBUG=1` (or a
-`DEBUG` list containing `web-search`) or `"debug": true` in the XDG config
-file; the `--debug` flag wins over both.
+> The LLM check only matters for `--use-ai` (see [AI answers](#ai-answers)).
+> Without LLM config it reports "skipped" and still passes.
 
-AI answers (`--use-ai`) need an OpenAI-compatible endpoint too:
+## CLI — usage
+
+The CLI binary is `web-search` (after `pnpm build`, run it as
+`node dist/surfaces/cli/cli.js …`).
+
+```
+web-search "<query>" [flags]          search
+web-search --session <id> [--json]    re-read a saved session
+web-search --doctor [--json]          validate your setup
+web-search --help                     show help
+```
+
+| Flag                | Meaning                                                        |
+| ------------------- | -------------------------------------------------------------- |
+| `--categories <csv>`| restrict to categories, e.g. `--categories general,news`       |
+| `--engines <csv>`   | restrict to engines, e.g. `--engines wikipedia,arxiv`          |
+| `--language <code>` | e.g. `--language en`, `--language de`                          |
+| `--time-range <x>`  | `day` \| `month` \| `year` (e.g. `day` for news from the last 24h) |
+| `--safesearch <n>`  | `0` off, `1` moderate, `2` strict                              |
+| `--page <n>`        | result page number                                             |
+| `--session <id>`    | show a saved session instead of searching (no query allowed)   |
+| `--use-ai`          | answer with the AI loop instead of listing results             |
+| `--debug`           | verbose logging to stderr (never pollutes stdout/JSON)         |
+| `--doctor`          | validate setup (takes no query, no other flags except `--json`)|
+| `--json`            | full structured output (default is readable markdown)          |
+| `--help`            | show help                                                      |
+
+Exit codes: `0` success (even with zero results), `1` runtime error,
+`2` usage error (e.g. query combined with `--session`).
+
+### Search
+
+```sh
+node dist/surfaces/cli/cli.js "what is kubernetes"
+```
+
+Output is readable markdown showing the top 10 hits (the full result set is
+always saved — see [sessions](#sessions)):
+
+```markdown
+**Session:** cc6a54d5-what-is-kubernetes
+## Search results for "what is kubernetes" (27)
+1. [Overview - Kubernetes](https://kubernetes.io/docs/concepts/overview/)
+   Kubernetes is a portable, extensible, open source platform for managing containerized workloads and services ...
+   *Engines: google cse, braveapi, exaapi · Category: general*
+2. [What is Kubernetes? - Red Hat](https://www.redhat.com/en/topics/containers/what-is-kubernetes)
+   The core concepts of Kubernetes center around clusters, nodes, and pods working together ...
+   *Engines: google cse, braveapi, exaapi · Category: general*
+3. [Kubernetes - Wikipedia](https://en.wikipedia.org/wiki/Kubernetes)
+   Kubernetes, also known as K8s, is an open-source container orchestration system for automating software deployment, scaling, and management. ...
+   *Engines: google cse, braveapi, exaapi · Category: general*
+```
+
+Refine with filters — all flags combine freely:
+
+```sh
+node dist/surfaces/cli/cli.js "fusion breakthrough" --categories news --time-range day --language en
+node dist/surfaces/cli/cli.js "kubernetes ingress" --engines stackoverflow,github --page 2
+```
+
+> A query and `--session` are mutually exclusive. `--doctor` takes neither.
+
+### JSON output
+
+Add `--json` to any search for the full structured response — every result
+with `title`, `url`, `snippet`, `publishedDate`, `score`, `engines`,
+`category`, plus `suggestions`, `answers`, `corrections`, `infoboxes`, and
+`unresponsiveEngines`:
+
+```sh
+node dist/surfaces/cli/cli.js "what is kubernetes" --json
+```
+
+```json
+{
+  "query": "what is kubernetes",
+  "sessionId": "5416a500-what-is-kubernetes",
+  "results": [
+    {
+      "title": "Overview - Kubernetes",
+      "url": "https://kubernetes.io/docs/concepts/overview/",
+      "snippet": "Kubernetes is a portable, extensible, open source platform for managing containerized workloads and services ...",
+      "publishedDate": "2026-05-30T00:00:00+00:00",
+      "score": 9,
+      "engines": ["google cse", "braveapi", "exaapi"],
+      "category": "general"
+    },
+    {
+      "title": "Kubernetes",
+      "url": "https://kubernetes.io/",
+      "snippet": "Kubernetes, also known as K8s, is an open source system for automating deployment, scaling, and management of containerized applications. ...",
+      "publishedDate": null,
+      "score": 2.7,
+      "engines": ["google cse", "braveapi", "exaapi"],
+      "category": "general"
+    }
+  ],
+  "suggestions": [],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "unresponsiveEngines": [
+    ["brave", "Suspended: too many requests"],
+    ["duckduckgo", "CAPTCHA"]
+  ]
+}
+```
+
+> `unresponsiveEngines` are normal: some backends fail non-fatally on any
+> given search. They print as `warning:` lines on stderr and never pollute
+> stdout, so `--json` stays machine-readable.
+
+### Sessions
+
+Every search persists an immutable session on disk and prints its id in the
+`**Session:**` line. Re-read it any time — from any surface (CLI, MCP, pi):
+
+```sh
+node dist/surfaces/cli/cli.js --session cc6a54d5-what-is-kubernetes
+node dist/surfaces/cli/cli.js --session cc6a54d5-what-is-kubernetes --json
+```
+
+Sessions live under `$XDG_DATA_HOME/web-search/sessions/` (fallback
+`~/.local/share/web-search/sessions/`) in folders named
+`<8 hex>-<query slug>`, e.g. `cc6a54d5-what-is-kubernetes`.
+
+### AI answers
+
+`--use-ai` runs a plan → search → summarize loop: the planner picks
+categories/engines from your instance's live config, searches and saves the
+session as usual, then answers your question with footnote citations.
+
+Setup (needs an OpenAI-compatible endpoint in addition to SearXNG):
 
 ```sh
 export OPENAI_BASE_URL=https://litellm.void.cold.at/v1
 export OPENAI_MODEL=deepseek-v4-flash
 export OPENAI_API_KEY=<key>   # env wins; or openai.apiKey in the XDG config file (mode 0600)
-node dist/cli.js "latest pi 5 news" --use-ai
+node dist/surfaces/cli/cli.js "latest pi 5 news" --use-ai
 ```
 
-## Quickstart — AI agent
+```
+**Session:** 9be21cc4-latest-pi-5-news
 
-Pick whichever surface your harness speaks. All three share the core and the
-session store, so sessions are interchangeable.
+The Raspberry Pi 5 ... [^1] ... [^2]
+
+Sources
+[^1]: [Title one](https://example.com/one)
+[^2]: [Title two](https://example.com/two)
+```
+
+Explicit flags always override the AI plan, e.g.
+`--use-ai --language de --engines wikipedia` forces those choices.
+
+### Debugging
+
+`--debug` (or `WEB_SEARCH_DEBUG=1`) prints verbose diagnostics — request URLs
+and timing, session persistence, and with `--use-ai` the plan decision, tool
+calls, and model-call counts. It always goes to stderr, so piping stdout to
+`jq` keeps working.
+
+## Configuration
+
+Highest precedence first:
+
+1. Environment variables / CLI flags (`SEARXNG_URL`, `SEARXNG_TIMEOUT_MS`, `OPENAI_*`)
+2. XDG config file `$XDG_CONFIG_HOME/web-search/config.json`
+   (fallback `~/.config/web-search/config.json`)
+3. Built-in defaults
+
+`$PWD/.env` (gitignored, copy from `.env.example`) is loaded by the CLI/MCP
+entrypoints before startup; the core itself never loads dotenv.
+
+| Variable             | Required       | Default   | Purpose                                             |
+| -------------------- | -------------- | --------- | --------------------------------------------------- |
+| `SEARXNG_URL`        | yes            | —         | SearXNG instance base URL; fails fast without it    |
+| `SEARXNG_TIMEOUT_MS` | no             | `10000`   | per-request timeout in ms                           |
+| `WEB_SEARCH_DEBUG`   | no             | `0`       | verbose stderr logging; `1` to enable               |
+| `OPENAI_BASE_URL`    | for `--use-ai` | —         | OpenAI-compatible endpoint                          |
+| `OPENAI_MODEL`       | for `--use-ai` | —         | model name (e.g. `deepseek-v4-flash`)               |
+| `OPENAI_API_KEY`     | for `--use-ai` | —         | key; env wins, `openai.apiKey` in the XDG config file is the fallback (mode 0600, single line) |
+| `PORT`               | no             | `3000`    | MCP `--http` port when no port arg is given         |
+
+XDG config file example:
+
+```json
+{
+  "searxngUrl": "https://search.example.com",
+  "timeoutMs": 10000,
+  "storeDir": "/custom/path/to/sessions",
+  "debug": false,
+  "openai": {
+    "baseUrl": "https://litellm.void.cold.at/v1",
+    "model": "deepseek-v4-flash",
+    "apiKey": "sk-..."
+  }
+}
+```
+
+Any standard SearXNG instance works — no instance-side setup needed. The core
+uses the JSON API plus `/config` (the `--use-ai` planner constrains its
+category/engine picks to what `/config` actually offers).
+
+## Agent surfaces (MCP + pi)
+
+All surfaces share the core and the session store, so sessions are
+interchangeable. Pick whichever your harness speaks.
 
 **1. MCP via stdio** (Claude Code, opencode, pi):
 
@@ -66,8 +254,11 @@ session store, so sessions are interchangeable.
   "mcpServers": {
     "web-search": {
       "command": "node",
-      "args": ["/abs/path/web-search-mcp/dist/mcp.js"],
-      "env": { "SEARXNG_URL": "https://search.example.com" }
+      "args": ["/abs/path/web-search-mcp/dist/surfaces/mcp/mcp.js"],
+      "env": {
+        "SEARXNG_URL": "https://search.example.com",
+        "OPENAI_API_KEY": "sk-..."
+      }
     }
   }
 }
@@ -76,7 +267,7 @@ session store, so sessions are interchangeable.
 **2. MCP via streamable HTTP** (shared server for multiple agents):
 
 ```sh
-node dist/mcp.js --http 3000   # or PORT=3000 node dist/mcp.js --http
+node dist/surfaces/mcp/mcp.js --http 3000   # or PORT=3000 node dist/surfaces/mcp/mcp.js --http
 # endpoint: POST/GET/DELETE http://localhost:3000/mcp
 ```
 
@@ -88,123 +279,31 @@ node dist/mcp.js --http 3000   # or PORT=3000 node dist/mcp.js --http
 }
 ```
 
-**3. pi extension** (`pi-package.json` / package with `"pi"` key already
-declares `./extensions`):
+**3. pi extension** (`package.json` already declares `./extensions` via the
+`"pi"` key):
 
 ```sh
 pi install /abs/path/web-search-mcp   # then use the search tool
 ```
 
-Tool contract (`search` — the only tool): required `query: string`;
-optional `categories: string[]`, `engines: string[]` (default: all available
-engines), `language: string`, `timeRange: day|month|year` (e.g. day for news
-from the last 24h), `safeSearch: 0|1|2`, `pageNo: number`,
-`maxResults: number` (default 10, max 50). Returns lean markdown:
-`Session:` id line, then `title` / `url` / `snippet` / `engine` / `category`
-per result. Agent guidance:
+Tool contract (`search` — the only tool): required `query: string`; optional
+`categories: string[]`, `engines: string[]` (default: all available engines),
+`language: string`, `timeRange: day|month|year`, `safeSearch: 0|1|2`,
+`pageNo: number`, `maxResults: number` (default 10, max 50). Returns lean
+markdown: a `Session:` id line, then `title` / `url` / `snippet` / `engine` /
+`category` per result. Agent guidance:
 
 - `maxResults` only trims the rendered summary — the full result set stays in
   the persisted session on disk.
 - Re-read full detail via the CLI (`--session <id>`) or the session store;
   there is no `search_details` MCP tool yet (deferred until the MCP server is
   in active use).
-- `unresponsiveEngines` are data, not errors — some backends failed non-fatally.
+- `unresponsiveEngines` are data, not errors — some backends failed
+  non-fatally.
 - For `--use-ai` behavior from an agent, run the CLI rather than reimplementing
   the loop; explicit flags always override the AI plan.
 
-## Setup details
+## Development
 
-### Config precedence and files
-
-Highest precedence first:
-
-1. Environment variables (`SEARXNG_URL`, `SEARXNG_TIMEOUT_MS`, `OPENAI_*`)
-2. XDG config file `$XDG_CONFIG_HOME/web-search/config.json`
-   (fallback `~/.config/web-search/config.json`) — non-secret values only
-3. Built-in defaults
-
-`$PWD/.env` (gitignored, copy from `.env.example`) is loaded by the CLI/MCP
-entrypoints before startup; the core itself never loads dotenv.
-
-| Variable            | Required | Default | Purpose                                              |
-| ------------------- | -------- | ------- | ---------------------------------------------------- |
-| `SEARXNG_URL`       | yes      | —       | SearXNG instance base URL; core fails fast without it |
-| `SEARXNG_TIMEOUT_MS`| no       | `10000` | per-request timeout in ms                            |
-| `WEB_SEARCH_DEBUG` | no       | `0`     | verbose stderr logging; `1` to enable                |
-| `OPENAI_BASE_URL`   | for `--use-ai` | — | OpenAI-compatible endpoint                           |
-| `OPENAI_MODEL`      | for `--use-ai` | — | model name (e.g. `deepseek-v4-flash`)                |
-| `OPENAI_API_KEY`    | for `--use-ai` | — | key; env wins, `openai.apiKey` in the XDG config file is the fallback (mode 0600, must be a single line) |
-| `PORT`              | no       | `3000`  | MCP `--http` port when no port arg is given          |
-
-XDG config file example (`openai.apiKey` is the fallback when `OPENAI_API_KEY`
-is unset — keep the file mode 0600 then):
-
-```json
-{
-  "searxngUrl": "https://search.example.com",
-  "timeoutMs": 10000,
-  "storeDir": "/custom/path/to/sessions",
-  "debug": false,
-  "openai": { "baseUrl": "https://litellm.void.cold.at/v1", "model": "deepseek-v4-flash", "apiKey": "sk-..." }
-}
-```
-
-`openai.apiKey` is a fallback for `OPENAI_API_KEY` (env wins). Keep the file
-mode 0600 when it holds a key.
-
-Sessions default to `$XDG_DATA_HOME/web-search/sessions/` (fallback
-`~/.local/share/web-search/sessions/`). Each session is a directory named
-`<8 hex>-<query slug>` (e.g. `3f9a2c7e-what-is-kubernetes`) containing a
-`session.json` envelope plus one JSON file per result; sessions are immutable
-once written.
-
-### SearXNG requirements
-
-Any standard SearXNG instance works; the core uses the JSON API plus
-`/config` (the `--use-ai` planner constrains its category/engine picks to
-what `/config` actually offers). No instance-side setup is needed.
-
-### Dev commands
-
-```sh
-pnpm install    # deps
-pnpm validate   # typecheck (tsgo) + lint (eslint 9) + tests (vitest); run before every commit
-pnpm build      # emit dist/ (bins get chmod +x)
-pnpm test       # vitest run
-```
-
-### `--doctor`
-
-```sh
-node dist/cli.js --doctor         # human-readable check list
-node dist/cli.js --doctor --json  # structured DoctorReport
-```
-
-Checks, in order: config loads (`SEARXNG_URL` present) → session store
-writable → SearXNG `/config` reachable → instance has enabled engines → a
-side-effect-free `/search` probe (raw, no session persisted) → LLM endpoint
-reachable via `GET {baseUrl}/models` when OpenAI config is present (skipped
-otherwise, no chat call so no token cost). The LLM check also rejects a
-multiline `OPENAI_API_KEY` (the vault secret has a marker comment after the
-key — only the first line is valid). Exit `0` only when every check passes.
-
-### How `--use-ai` works
-
-Plan → search → summarize (`src/agent.ts`): the planner steers
-categories/engines/language/timeRange from the instance's live `/config`
-lists, the core searches and persists the session as usual, then a
-tool-calling summarizer answers the original query from a numbered session
-overview (top 10 by default) with one tool, `read_session_entry`, for full
-per-result records. Summaries cite with `[^n]` footnotes backed by a Sources
-section (`[^n]: [title](url)`); footnote failures retry once as a single
-direct call. See `docs/agents/agentic-loop.md` for the footnote contract,
-call limits, and the live smoke-test recipe.
-
-### Glossary and internals
-
-- `CONTEXT.md` — canonical domain glossary (search, session, store root,
-  snippet, surface, …). Use its terms.
-- `AGENTS.md` — contributor entrypoint (layout, secrets, pointers).
-- `src/index.ts` — the core (`search`, `readSession`, `renderMarkdown`,
-  `loadConfig`); `src/agent.ts`, `src/cli.ts`, `src/mcp.ts`, `src/searxng.ts`,
-  `src/session.ts`, `src/config.ts`, `src/markdown.ts`, `src/types.ts`.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for build commands, architecture, the
+`--use-ai` / `--doctor` internals, and contributor pointers.

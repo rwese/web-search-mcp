@@ -1,73 +1,24 @@
-import type { SearchOptions, SearchResponse } from "./types.js";
-import { loadConfig } from "./config.js";
-import { createDebugLogger, resolveDebug, type DebugLogger } from "./debug.js";
-import { normalizeResult, searchRaw, type RawSearchResult } from "./searxng.js";
-import { createSessionId, writeSession } from "./session.js";
-
 /**
- * Perform a web search and persist it as a session.
+ * Package barrel — re-exports only, no logic.
  *
- * Config comes from the environment + XDG config file (see config.ts), with
- * per-call overrides via `options`. Every search writes a session directory
- * under the configured store root, keyed by the returned sessionId.
+ * Surfaces (CLI, MCP server, pi wrapper) consume the core through here.
+ * The AI loop (`ai/agent.js`) is imported directly so the barrel never
+ * forms a cycle with it.
  */
-export async function search(query: string, options: SearchOptions = {}): Promise<SearchResponse> {
-  const config = await loadConfig();
-  const baseUrl = options.baseUrl || config.searxngUrl;
-  const timeoutMs = options.timeoutMs || config.timeoutMs;
-  const debugOpt = options.debug;
-  const debug: DebugLogger =
-    typeof debugOpt === 'object'
-      ? debugOpt
-      : createDebugLogger(resolveDebug({ debug: debugOpt, configDebug: config.debug }));
-  const effective = { ...options, debug };
-
-  debug.log('search', `query "${query}" -> ${baseUrl}`);
-  const raw = await searchRaw(baseUrl, query, effective, timeoutMs);
-
-  const results = (raw.results ?? []).map((result: RawSearchResult) => normalizeResult(result));
-
-  const sessionId = createSessionId(query);
-  const createdAt = new Date().toISOString();
-  const envelope = {
-    suggestions: raw.suggestions ?? [],
-    answers: raw.answers ?? [],
-    corrections: raw.corrections ?? [],
-    infoboxes: raw.infoboxes ?? [],
-    unresponsiveEngines: raw.unresponsive_engines ?? [],
-  };
-
-  await writeSession(config.storeDir, sessionId, {
-    query,
-    createdAt,
-    results,
-    ...envelope,
-  });
-  debug.log('search', `session ${sessionId} persisted`, {
-    storeDir: config.storeDir,
-    resultCount: results.length,
-    unresponsiveEngines: envelope.unresponsiveEngines,
-  });
-
-  return {
-    query,
-    sessionId,
-    results,
-    ...envelope,
-  };
-}
-
-export { readSession } from "./session.js";
-export { renderMarkdown } from "./markdown.js";
-export { renderDoctorReport, runDoctor } from "./doctor.js";
-export type { DoctorCheck, DoctorDeps, DoctorOptions, DoctorReport } from "./doctor.js";
-export type { DebugLogger } from "./debug.js";
-export { createDebugLogger, resolveDebug } from "./debug.js";
+export { search } from "./core/search.js";
+export { readSession } from "./core/session.js";
+export { renderMarkdown } from "./core/markdown.js";
+export { renderDoctorReport, runDoctor } from "./diagnostics/doctor.js";
 export type {
-  Config,
-  ConfigFile,
-} from "./config.js";
-export { defaultStoreDir, loadConfig, openaiApiKey } from "./config.js";
+  DoctorCheck,
+  DoctorDeps,
+  DoctorOptions,
+  DoctorReport,
+} from "./diagnostics/doctor.js";
+export type { DebugLogger } from "./infra/debug.js";
+export { createDebugLogger, resolveDebug } from "./infra/debug.js";
+export type { Config, ConfigFile } from "./infra/config.js";
+export { defaultStoreDir, loadConfig, openaiApiKey } from "./infra/config.js";
 export type {
   SafeSearch,
   SearchOptions,
@@ -75,10 +26,5 @@ export type {
   SearchResult,
   SessionRecord,
   TimeRange,
-} from "./types.js";
-export {
-  SearchError,
-  SearxngError,
-  SearchTimeout,
-  SearchUnavailable,
-} from "./types.js";
+} from "./core/types.js";
+export { SearchError, SearxngError, SearchTimeout, SearchUnavailable } from "./core/errors.js";

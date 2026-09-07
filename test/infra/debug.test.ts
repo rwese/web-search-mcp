@@ -5,8 +5,8 @@ import {
 	resolveDebug,
 	resolveEnvDebug,
 	type DebugLogger,
-} from "../src/debug.js";
-import { countToolCalls } from "../src/agent.js";
+} from "../../src/infra/debug.js";
+import { countToolCalls } from "../../src/ai/agent.js";
 
 describe("resolveDebug", () => {
 	it("option wins over config and env", () => {

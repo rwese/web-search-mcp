@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { SearchResult, SessionRecord } from "./types.js";
-import { SearchError } from "./types.js";
+import { SearchError } from "./errors.js";
 
 const HEX_LEN = 8;
 const SLUG_MAX = 40;

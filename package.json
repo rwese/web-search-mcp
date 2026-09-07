@@ -20,13 +20,13 @@
       "default": "./dist/index.js"
     },
     "./mcp": {
-      "types": "./dist/mcp.d.ts",
-      "default": "./dist/mcp.js"
+      "types": "./dist/surfaces/mcp/mcp.d.ts",
+      "default": "./dist/surfaces/mcp/mcp.js"
     }
   },
   "bin": {
-    "web-search": "./dist/cli.js",
-    "web-search-mcp": "./dist/mcp.js"
+    "web-search": "./dist/surfaces/cli/cli.js",
+    "web-search-mcp": "./dist/surfaces/mcp/mcp.js"
   },
   "files": [
     "dist",
@@ -74,7 +74,7 @@
     "lint:fix": "eslint src/ extensions/ --fix",
     "format": "prettier --write src/ extensions/",
     "typecheck": "tsgo -p tsconfig.json",
-    "build": "tsgo -p tsconfig.build.json && chmod +x dist/cli.js dist/mcp.js",
+    "build": "tsgo -p tsconfig.build.json && chmod +x dist/surfaces/cli/cli.js dist/surfaces/mcp/mcp.js",
     "validate": "npm run typecheck && npm run lint && npm run test"
   }
 }
