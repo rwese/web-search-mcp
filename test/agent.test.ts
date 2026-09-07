@@ -165,6 +165,7 @@ describe("modelFromConfig", () => {
 		searxngUrl: "https://search.example/",
 		timeoutMs: 10000,
 		storeDir: "/tmp/sessions",
+		debug: false,
 		openai: { baseUrl: "https://litellm.example/v1", model: "deepseek-v4-flash" },
 	};
 
@@ -186,5 +187,32 @@ describe("modelFromConfig", () => {
 	it("throws when OPENAI_API_KEY is missing", () => {
 		delete process.env.OPENAI_API_KEY;
 		expect(() => modelFromConfig(config)).toThrow("OPENAI_API_KEY is not set");
+	});
+
+	it("stamps a generated x-opencode-session by default", () => {
+		process.env.OPENAI_API_KEY = "sk-test";
+		const model = modelFromConfig(config);
+		const headers = model.clientConfig.defaultHeaders as Record<string, string>;
+		expect(headers["x-opencode-session"]).toMatch(
+			/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+		);
+		delete process.env.OPENAI_API_KEY;
+	});
+
+	it("generates a fresh id per model", () => {
+		process.env.OPENAI_API_KEY = "sk-test";
+		const first = modelFromConfig(config).clientConfig.defaultHeaders as Record<string, string>;
+		const second = modelFromConfig(config).clientConfig.defaultHeaders as Record<string, string>;
+		expect(first["x-opencode-session"]).not.toBe(second["x-opencode-session"]);
+		delete process.env.OPENAI_API_KEY;
+	});
+
+	it("prefers an explicit sessionId over the generated one", () => {
+		process.env.OPENAI_API_KEY = "sk-test";
+		const model = modelFromConfig(config, { sessionId: "ses_explicit" });
+		expect(model.clientConfig.defaultHeaders).toMatchObject({
+			"x-opencode-session": "ses_explicit",
+		});
+		delete process.env.OPENAI_API_KEY;
 	});
 });

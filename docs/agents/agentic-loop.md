@@ -51,5 +51,9 @@ XDG_DATA_HOME=/tmp/smoke node dist/cli.js --session <id> --use-ai     # summariz
 ```
 
 Expect exit 0, a `**Session:**` line, unresponsive-engine warnings on stderr
-(non-fatal), and a footnoted summary with Sources. `--json` adds the full
+(non-fatal, never on stdout), and a footnoted summary with Sources. `--json` adds the full
 `summary` / answer envelope.
+
+The LLM client stamps a freshly generated `x-opencode-session` id on every
+request (explicit `sessionId` opt wins) so the proxy groups one answer-loop
+run's calls (LiteLLM auto-detects `x-*-session-id`).

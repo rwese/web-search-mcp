@@ -1,5 +1,13 @@
 import type { SearchOptions, SearchResult } from "./types.js";
 import { SearxngError, SearchTimeout, SearchUnavailable } from "./types.js";
+import { toLogger } from "./debug.js";
+
+/** Strip logger instances out of options before debug logging. */
+function redactOptions(options: SearchOptions): Record<string, unknown> {
+	const { debug, ...rest } = options;
+	void debug;
+	return rest;
+}
 
 /** Raw result shape as returned by the SearXNG JSON API. */
 export type RawSearchResult = {
@@ -94,9 +102,12 @@ export async function searchRaw(
 ): Promise<RawSearchResponse> {
   const url = new URL("/search", baseUrl.replace(/\/+$/, ""));
   url.search = buildQueryParams(query, options).toString();
+  const debug = toLogger(options.debug);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  debug.log('searxng', `GET ${url.toString()}`, { query, options: redactOptions(options), timeoutMs });
+  const startedAt = Date.now();
   try {
     let response: Response;
     try {
@@ -110,6 +121,7 @@ export async function searchRaw(
 
     if (!response.ok) {
       const message = await parseError(response);
+      debug.log('searxng', `HTTP ${response.status} in ${Date.now() - startedAt}ms`, { message });
       if (response.status >= 500) {
         throw new SearchUnavailable(`SearXNG returned HTTP ${response.status}: ${message}`);
       }
@@ -120,6 +132,10 @@ export async function searchRaw(
     if (!raw || !Array.isArray(raw.results)) {
       throw new SearxngError("SearXNG returned an unexpected response shape", response.status);
     }
+    debug.log('searxng', `OK ${raw.results.length} result(s) in ${Date.now() - startedAt}ms`, {
+      suggestions: raw.suggestions ?? [],
+      unresponsiveEngines: raw.unresponsive_engines ?? [],
+    });
     return raw;
   } finally {
     clearTimeout(timer);
@@ -148,8 +164,11 @@ export type InstanceConfig = {
 export async function fetchInstanceConfig(
   baseUrl: string,
   timeoutMs: number,
+  options: Pick<SearchOptions, 'debug'> = {},
 ): Promise<InstanceConfig> {
   const url = new URL("/config", baseUrl.replace(/\/+$/, ""));
+  const debug = toLogger(options.debug);
+  debug.log('searxng', `GET ${url.toString()}`, { timeoutMs });
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -168,7 +187,12 @@ export async function fetchInstanceConfig(
         response.status,
       );
     }
-    return (await response.json()) as InstanceConfig;
+    const config = (await response.json()) as InstanceConfig;
+    debug.log('searxng', `/config OK`, {
+      categories: instanceCategories(config).length,
+      engines: enabledEngineNames(config).length,
+    });
+    return config;
   } finally {
     clearTimeout(timer);
   }

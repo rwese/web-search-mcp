@@ -36,6 +36,7 @@ Flags:
   --page <n>           result page number
   --session <id>       show a persisted search session instead of searching
   --use-ai             answer via the LangChain agentic loop (plan -> search -> summarize)
+  --debug              verbose stderr logging (search requests, AI loop, tool use)
   --json               structured output (default: markdown)
   --help               show this help
 
@@ -47,10 +48,11 @@ type ParsedArgs = {
 	sessionId?: string;
 	json?: boolean;
 	useAi?: boolean;
+	debug?: boolean;
 	options: SearchOptions;
 };
 
-const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useAi"> = {
+const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useAi" | "debug"> = {
 	"--categories": "categories",
 	"--engines": "engines",
 	"--language": "language",
@@ -60,6 +62,7 @@ const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useA
 	"--json": "json",
 	"--session": "session",
 	"--use-ai": "useAi",
+	"--debug": "debug",
 };
 
 function fail(message: string): never {
@@ -79,6 +82,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 	let help = false;
 	let json = false;
 	let useAi = false;
+	let debug = false;
 	let sessionId: string | undefined;
 
 	for (let i = 0; i < argv.length; i += 1) {
@@ -93,6 +97,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 		}
 		if (arg === "--use-ai") {
 			useAi = true;
+			continue;
+		}
+		if (arg === "--debug") {
+			debug = true;
 			continue;
 		}
 		const key = FLAG_KEYS[arg];
@@ -154,7 +162,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 		fail("missing query");
 	}
 
-	return { help, query, sessionId, json, useAi, options };
+	return { help, query, sessionId, json, useAi, debug, options };
 }
 
 function printUsage(): void {
@@ -216,6 +224,7 @@ async function run(): Promise<number> {
 			const hasOverrides = Object.keys(parsed.options).length > 0;
 			const answer: AiAnswer = await answerQuery(parsed.query as string, {
 				...(hasOverrides ? { overrides: parsed.options } : {}),
+				...(parsed.debug ? { debug: true } : {}),
 			});
 			for (const [engine, reason] of answer.unresponsiveEngines) {
 				process.stderr.write(`warning: engine ${engine} unresponsive (${reason})\n`);
@@ -235,7 +244,10 @@ async function run(): Promise<number> {
 	}
 
 	try {
-		const response = await search(parsed.query as string, parsed.options);
+		const response = await search(parsed.query as string, {
+			...parsed.options,
+			...(parsed.debug ? { debug: true } : {}),
+		});
 		warnUnresponsive(response);
 		if (parsed.json) {
 			process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);

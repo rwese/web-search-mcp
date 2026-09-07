@@ -102,9 +102,11 @@ describe("renderMarkdown", () => {
         expect(md).toContain("*brave · general · 2024-01-01*");
     });
 
-    it("calls out unresponsive engines", () => {
-        expect(renderMarkdown(response)).toContain("Unresponsive engines: startpage (CAPTCHA)");
-    });
+	it("omits unresponsive engines (stderr-only diagnostics, never stdout)", () => {
+		const md = renderMarkdown(response);
+		expect(md).not.toContain("Unresponsive engines");
+		expect(md).not.toContain("startpage");
+	});
 
     it("caps the results at maxResults", () => {
         const many: SearchResponse = {

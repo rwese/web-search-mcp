@@ -1,5 +1,6 @@
 import type { SearchOptions, SearchResponse } from "./types.js";
 import { loadConfig } from "./config.js";
+import { createDebugLogger, resolveDebug, type DebugLogger } from "./debug.js";
 import { normalizeResult, searchRaw, type RawSearchResult } from "./searxng.js";
 import { createSessionId, writeSession } from "./session.js";
 
@@ -14,8 +15,15 @@ export async function search(query: string, options: SearchOptions = {}): Promis
   const config = await loadConfig();
   const baseUrl = options.baseUrl || config.searxngUrl;
   const timeoutMs = options.timeoutMs || config.timeoutMs;
+  const debugOpt = options.debug;
+  const debug: DebugLogger =
+    typeof debugOpt === 'object'
+      ? debugOpt
+      : createDebugLogger(resolveDebug({ debug: debugOpt, configDebug: config.debug }));
+  const effective = { ...options, debug };
 
-  const raw = await searchRaw(baseUrl, query, options, timeoutMs);
+  debug.log('search', `query "${query}" -> ${baseUrl}`);
+  const raw = await searchRaw(baseUrl, query, effective, timeoutMs);
 
   const results = (raw.results ?? []).map((result: RawSearchResult) => normalizeResult(result));
 
@@ -35,6 +43,11 @@ export async function search(query: string, options: SearchOptions = {}): Promis
     results,
     ...envelope,
   });
+  debug.log('search', `session ${sessionId} persisted`, {
+    storeDir: config.storeDir,
+    resultCount: results.length,
+    unresponsiveEngines: envelope.unresponsiveEngines,
+  });
 
   return {
     query,
@@ -46,6 +59,8 @@ export async function search(query: string, options: SearchOptions = {}): Promis
 
 export { readSession } from "./session.js";
 export { renderMarkdown } from "./markdown.js";
+export type { DebugLogger } from "./debug.js";
+export { createDebugLogger, resolveDebug } from "./debug.js";
 export type {
   Config,
   ConfigFile,

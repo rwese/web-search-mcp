@@ -52,6 +52,12 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
 - **Footnote** — a `[^n]` citation binding a claim to the n-th result of the
   session, backed by an entry in the summary's Sources section. Every
   externally verifiable claim carries one; see `docs/agents/agentic-loop.md`.
+- **Debug logging** — verbose stderr-only diagnostics (search request URLs +
+  timing, session persistence, and with `--use-ai` the planner decision,
+  tool calls, and model-call counts). Enabled by `SearchOptions.debug`, a
+  `DebugLogger`, `Config.debug`, `WEB_SEARCH_DEBUG`, a `DEBUG` list containing
+  `web-search`, or the CLI `--debug` flag. Never touches stdout, so `--json`
+  output stays machine-readable.
 
 ## Decisions
 

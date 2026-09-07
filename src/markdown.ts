@@ -1,6 +1,12 @@
 import type { SearchResponse } from "./types.js";
 
-/** Render a SearchResponse as lean, human-readable markdown. */
+/** Render a SearchResponse as lean, human-readable markdown (stdout-safe).
+ *
+ * Diagnostics such as unresponsive engines are intentionally NOT rendered
+ * here: all warnings go to stderr (CLI) and never pollute stdout, which
+ * stays machine-readable. The full envelope including `unresponsiveEngines`
+ * remains available via `--json` and the persisted session.
+ */
 export function renderMarkdown(response: SearchResponse, maxResults = 10): string {
   const lines: string[] = [];
   lines.push(`**Session:** ${response.sessionId}`);
@@ -22,15 +28,9 @@ export function renderMarkdown(response: SearchResponse, maxResults = 10): strin
     });
   }
 
-  if (response.suggestions.length) {
-    lines.push(`Suggestions: ${response.suggestions.join(", ")}`);
-  }
-  if (response.unresponsiveEngines.length) {
-    const detail = response.unresponsiveEngines
-      .map(([engine, reason]) => `${engine} (${reason})`)
-      .join(", ");
-    lines.push(`Unresponsive engines: ${detail}`);
-  }
+	if (response.suggestions.length) {
+		lines.push(`Suggestions: ${response.suggestions.join(", ")}`);
+	}
 
-  return lines.join("\n");
+	return lines.join("\n");
 }

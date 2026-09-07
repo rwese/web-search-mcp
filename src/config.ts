@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { SearchError } from "./types.js";
+import { resolveEnvDebug } from "./debug.js";
 
 /**
  * Configuration resolution, per the wayfinder map (config schema & precedence).
@@ -20,6 +21,8 @@ export type Config = {
   searxngUrl: string;
   timeoutMs: number;
   storeDir: string;
+  /** Verbose stderr logging. Set by WEB_SEARCH_DEBUG (env wins), else the config file. */
+  debug: boolean;
   openai?: {
     baseUrl?: string;
     model?: string;
@@ -30,6 +33,7 @@ export type ConfigFile = {
   searxngUrl?: string;
   timeoutMs?: number;
   storeDir?: string;
+  debug?: boolean;
   openai?: {
     baseUrl?: string;
     model?: string;
@@ -79,10 +83,13 @@ export async function loadConfig(): Promise<Config> {
   const timeoutMs =
     timeoutRaw === undefined ? DEFAULT_TIMEOUT_MS : Number(timeoutRaw) || DEFAULT_TIMEOUT_MS;
 
+  const envDebug = resolveEnvDebug();
+
   return {
     searxngUrl,
     timeoutMs,
     storeDir: file.storeDir || defaultStoreDir(),
+    debug: envDebug ?? file.debug ?? false,
     openai:
       file.openai || process.env.OPENAI_BASE_URL || process.env.OPENAI_MODEL
         ? {
