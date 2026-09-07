@@ -39,6 +39,19 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
   environment variables, the XDG config file
   (`$XDG_CONFIG_HOME/web-search/config.json`), and defaults. Non-secret values
   only; API keys stay in the environment.
+- **Search plan** — the steering decision the model makes before a `--use-ai`
+  search: which categories/engines (plus optional language/timeRange) fit the
+  query's intent. Constrained to what the instance's `/config` actually offers;
+  an empty pick means no restriction.
+- **AI answer** — the result of the agentic loop (`answerQuery`): the search
+  plan, the persisted `sessionId`, and a footnote-cited summary of the
+  original query.
+- **Session overview** — the numbered result listing the summarizer reasons
+  over (top 10 by default), with full per-result records reachable via the
+  `read_session_entry` tool.
+- **Footnote** — a `[^n]` citation binding a claim to the n-th result of the
+  session, backed by an entry in the summary's Sources section. Every
+  externally verifiable claim carries one; see `docs/agents/agentic-loop.md`.
 
 ## Decisions
 
@@ -50,3 +63,6 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
   can open full details later (issue #10).
 - MCP's first build-out ships a single `web_search` tool; a `search_details`
   full-record tool is deferred until the MCP server is in use (issue #9).
+- `--use-ai` runs a LangChain plan → search → summarize loop; explicit CLI
+  flags always override the AI plan; footnote failures retry once as a direct
+  call, never a second tool loop.
