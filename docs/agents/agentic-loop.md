@@ -46,6 +46,7 @@ The vault secret is **multiline** (key on line 1, marker comment after) —
 `head -1` is required; the full value is an invalid header. Then:
 
 ```sh
+# from a local checkout (pnpm install && pnpm build):
 XDG_DATA_HOME=/tmp/smoke node dist/surfaces/cli/cli.js "<query>" --use-ai          # full loop
 XDG_DATA_HOME=/tmp/smoke node dist/surfaces/cli/cli.js --session <id> --use-ai     # summarize stored
 ```
