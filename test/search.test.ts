@@ -99,7 +99,7 @@ describe("renderMarkdown", () => {
         expect(md).toContain("## Search results for \"kubernetes\" (1)");
         expect(md).toContain("1. [Kubernetes](https://kubernetes.io/)");
         expect(md).toContain("Orchestration.");
-        expect(md).toContain("*brave · general · 2024-01-01*");
+        expect(md).toContain("*Engines: brave · Category: general · Published: 2024-01-01*");
     });
 
 	it("omits unresponsive engines (stderr-only diagnostics, never stdout)", () => {

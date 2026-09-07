@@ -21,7 +21,16 @@ export function renderMarkdown(response: SearchResponse, maxResults = 10): strin
       if (result.snippet) {
         lines.push(`   ${result.snippet}`);
       }
-      const meta = [result.engines.join(", "), result.category, result.publishedDate].filter(Boolean);
+      const meta: string[] = [];
+      if (result.engines.length) {
+        meta.push(`Engines: ${result.engines.join(", ")}`);
+      }
+      if (result.category) {
+        meta.push(`Category: ${result.category}`);
+      }
+      if (result.publishedDate) {
+        meta.push(`Published: ${result.publishedDate}`);
+      }
       if (meta.length) {
         lines.push(`   *${meta.join(" · ")}*`);
       }
