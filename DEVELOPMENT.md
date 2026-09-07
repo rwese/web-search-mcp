@@ -18,8 +18,8 @@ pnpm test       # vitest run only
   surfaces stay thin.
 - `src/core/` — `search`, `session`, `types`, `errors`, `markdown`.
 - `src/infra/` — `config`, `debug`, `searxng` (wire client).
-- `src/ai/agent.ts` — `--use-ai` loop: `planQuery`, `summarizeSession`,
-  `answerQuery`. Prompt and footnote rules live here.
+- `src/ai/agent.ts` — AI answer loop: `planQuery`, `summarizeSession`,
+  `answerQuery`, `isAiConfigured`. Prompt and footnote rules live here.
 - `src/diagnostics/doctor.ts` — `--doctor` setup checks.
 - `src/surfaces/cli/` (`cli`, `args`), `src/surfaces/mcp/` (`mcp`, `server`,
   `http`, `stdio`, `constants`), `src/surfaces/pi/` (`tool`).
@@ -37,7 +37,7 @@ pnpm test       # vitest run only
 - Precedence: CLI flag > env > XDG config file > defaults. Sessions default to
   `$XDG_DATA_HOME/web-search/sessions/`, shared by all surfaces.
 
-## How `--use-ai` works
+## How the AI answer works (default when configured)
 
 Plan → search → summarize (`src/ai/agent.ts`): the planner steers
 categories/engines/language/timeRange from the instance's live `/config`
@@ -46,7 +46,10 @@ tool-calling summarizer answers the original query from a numbered session
 overview (top 10 by default) with one tool, `read_session_entry`, for full
 per-result records. Summaries cite with `[^n]` footnotes backed by a Sources
 section (`[^n]: [title](url)`); footnote failures retry once as a single
-direct call. See `docs/agents/agentic-loop.md` for the footnote contract,
+direct call. The CLI runs the loop by default when the LLM is configured
+(model + API key; `isAiConfigured`); `--no-ai` opts out to raw results,
+`--use-ai` forces the loop, `--session` stays raw unless `--use-ai`.
+See `docs/agents/agentic-loop.md` for the footnote contract,
 call limits, and the live smoke-test recipe.
 
 ## How `--doctor` works
@@ -65,7 +68,7 @@ key — only the first line is valid). Exit `0` only when every check passes.
   resolved.
 - `docs/agents/issue-tracker.md` — Forgejo tracker ops (API recipes, claiming,
   frontier).
-- `docs/agents/agentic-loop.md` — the `--use-ai` architecture, footnote
+- `docs/agents/agentic-loop.md` — the AI loop architecture, footnote
   contract, and live smoke-test recipe.
 - `research/*` branches, `test/` — prior API findings (SearXNG, MCP SDK, pi
   contract) and expected behavior; read before changing a seam.

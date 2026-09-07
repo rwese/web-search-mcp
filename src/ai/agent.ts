@@ -75,6 +75,11 @@ export function modelFromConfig(config: Config, opts: { sessionId?: string } = {
 	});
 }
 
+/** True when the LLM pieces `modelFromConfig` needs (model + API key) are present. */
+export function isAiConfigured(config: Config): boolean {
+	return Boolean(config.openai?.model && openaiApiKey(config));
+}
+
 /** A model interface narrow enough to unit-test the planner with a stub. */
 export type PlannerModel = {
 	invoke(prompt: string): Promise<{ content: unknown }>;

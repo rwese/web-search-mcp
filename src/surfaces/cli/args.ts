@@ -16,7 +16,9 @@ Flags:
   --safesearch <0|1|2> 0 off, 1 moderate, 2 strict
   --page <n>           result page number
   --session <id>       show a persisted search session instead of searching
-  --use-ai             answer via the LangChain agentic loop (plan -> search -> summarize)
+  --use-ai             answer via the LangChain agentic loop (plan -> search -> summarize);
+                       the default when the LLM is configured (see README)
+  --no-ai              list raw results instead of the AI answer (opt out of the default)
   --debug              verbose stderr logging (search requests, AI loop, tool use)
   --doctor             validate setup: config, SearXNG, engines, probe search, LLM
   --json               structured output (default: markdown)
@@ -30,12 +32,13 @@ export type ParsedArgs = {
 	sessionId?: string;
 	json?: boolean;
 	useAi?: boolean;
+	noAi?: boolean;
 	debug?: boolean;
 	doctor?: boolean;
 	options: SearchOptions;
 };
 
-const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useAi" | "debug" | "doctor"> = {
+const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useAi" | "noAi" | "debug" | "doctor"> = {
 	"--categories": "categories",
 	"--engines": "engines",
 	"--language": "language",
@@ -45,6 +48,7 @@ const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useA
 	"--json": "json",
 	"--session": "session",
 	"--use-ai": "useAi",
+	"--no-ai": "noAi",
 	"--debug": "debug",
 	"--doctor": "doctor",
 };
@@ -66,6 +70,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	let help = false;
 	let json = false;
 	let useAi = false;
+	let noAi = false;
 	let debug = false;
 	let doctor = false;
 	let sessionId: string | undefined;
@@ -82,6 +87,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		}
 		if (arg === "--use-ai") {
 			useAi = true;
+			continue;
+		}
+		if (arg === "--no-ai") {
+			noAi = true;
 			continue;
 		}
 		if (arg === "--debug") {
@@ -144,8 +153,11 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	}
 
 	const query = positionals.join(" ").trim() || undefined;
-	if (doctor && (query || sessionId || useAi || Object.keys(options).length > 0)) {
-		fail("--doctor takes no query, --session, --use-ai, or search flags");
+	if (doctor && (query || sessionId || useAi || noAi || Object.keys(options).length > 0)) {
+		fail("--doctor takes no query, --session, --use-ai, --no-ai, or search flags");
+	}
+	if (useAi && noAi) {
+		fail("pass either --use-ai or --no-ai, not both");
 	}
 	if (query && sessionId) {
 		fail("pass either a query or --session <id>, not both");
@@ -154,5 +166,5 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		fail("missing query");
 	}
 
-	return { help, query, sessionId, json, useAi, debug, doctor, options };
+	return { help, query, sessionId, json, useAi, noAi, debug, doctor, options };
 }

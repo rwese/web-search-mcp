@@ -51,8 +51,8 @@ npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-
 Bare bin name below stands for that `npx … web-search` prefix:
 
 ```
-web-search "<query>" [flags]          search
-web-search --session <id> [--json]    re-read a saved session
+web-search "<query>" [flags]          search (AI answer when the LLM is configured, raw with --no-ai)
+web-search --session <id> [--json] [--use-ai]  re-read a saved session (raw unless --use-ai)
 web-search --doctor [--json]          validate your setup
 web-search --help                     show help
 ```
@@ -66,7 +66,8 @@ web-search --help                     show help
 | `--safesearch <n>`  | `0` off, `1` moderate, `2` strict                              |
 | `--page <n>`        | result page number                                             |
 | `--session <id>`    | show a saved session instead of searching (no query allowed)   |
-| `--use-ai`          | answer with the AI loop instead of listing results             |
+| `--use-ai`          | answer with the AI loop (default when the LLM is configured)   |
+| `--no-ai`           | list raw results even when the LLM is configured               |
 | `--debug`           | verbose logging to stderr (never pollutes stdout/JSON)         |
 | `--doctor`          | validate setup (takes no query, no other flags except `--json`)|
 | `--json`            | full structured output (default is readable markdown)          |
@@ -174,9 +175,14 @@ Sessions live under `$XDG_DATA_HOME/web-search/sessions/` (fallback
 
 ### AI answers
 
-`--use-ai` runs a plan → search → summarize loop: the planner picks
+A plain `web-search "<query>"` answers via the plan → search → summarize
+loop whenever the LLM is configured (model + API key): the planner picks
 categories/engines from your instance's live config, searches and saves the
-session as usual, then answers your question with footnote citations.
+session as usual, then answers your question with footnote citations. The
+markdown output prints the `**Session:**` id plus a
+`Raw results: web-search --session <id>` hint so the raw hits stay
+reviewable; `--json` carries the full `sessionId` / `plan` / `summary`
+envelope.
 
 Setup (needs an OpenAI-compatible endpoint in addition to SearXNG):
 
@@ -195,9 +201,13 @@ The Raspberry Pi 5 ... [^1] ... [^2]
 Sources
 [^1]: [Title one](https://example.com/one)
 [^2]: [Title two](https://example.com/two)
+
+Raw results: web-search --session 9be21cc4-latest-pi-5-news
 ```
 
-Explicit flags always override the AI plan, e.g.
+Pass `--no-ai` for the raw top-10 result list instead, or `--use-ai` to
+force the AI answer explicitly. `--session <id>` stays raw unless `--use-ai`
+is passed. Explicit flags always override the AI plan, e.g.
 `--use-ai --language de --engines wikipedia` forces those choices.
 
 ### Debugging
@@ -307,8 +317,10 @@ markdown: a `Session:` id line, then `title` / `url` / `snippet` / `engine` /
   in active use).
 - `unresponsiveEngines` are data, not errors — some backends failed
   non-fatally.
-- For `--use-ai` behavior from an agent, run the CLI rather than reimplementing
-  the loop; explicit flags always override the AI plan.
+- For AI-answer behavior from an agent, run the CLI rather than reimplementing
+  the loop; explicit flags always override the AI plan. When the LLM is
+  configured the CLI answers with AI by default — pass `--no-ai` for raw
+  results.
 
 ## Development
 

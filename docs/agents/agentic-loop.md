@@ -1,7 +1,11 @@
-# Agentic loop (`--use-ai`) — src/ai/agent.ts
+# Agentic loop (default when configured) — src/ai/agent.ts
 
 Flow: `planQuery` steers the search → core `search()` runs and persists the
 session → `summarizeSession` answers the original query from the session.
+The CLI runs this loop by default whenever the LLM is configured
+(`isAiConfigured`: model + API key present); `--no-ai` opts out to raw
+results, `--use-ai` forces the loop explicitly. `--session <id>` stays raw
+unless `--use-ai` is passed.
 
 ## Architecture
 
@@ -51,7 +55,8 @@ XDG_DATA_HOME=/tmp/smoke node dist/surfaces/cli/cli.js "<query>" --use-ai       
 XDG_DATA_HOME=/tmp/smoke node dist/surfaces/cli/cli.js --session <id> --use-ai     # summarize stored
 ```
 
-Expect exit 0, a `**Session:**` line, unresponsive-engine warnings on stderr
+Expect exit 0, a `**Session:**` line, a `Raw results: web-search --session <id>`
+re-read hint, unresponsive-engine warnings on stderr
 (non-fatal, never on stdout), and a footnoted summary with Sources. `--json` adds the full
 `summary` / answer envelope.
 

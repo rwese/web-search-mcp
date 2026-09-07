@@ -1,6 +1,6 @@
 {
   "name": "@ai-factory/web-search",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Agent-agnostic web search: a SearXNG-backed search core shared by a CLI, an MCP server, and a pi extension wrapper.",
   "keywords": [

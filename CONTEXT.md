@@ -46,7 +46,11 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
   an empty pick means no restriction.
 - **AI answer** — the result of the agentic loop (`answerQuery`): the search
   plan, the persisted `sessionId`, and a footnote-cited summary of the
-  original query.
+  original query. The CLI default for a query when the LLM is configured
+  (model + API key); `--no-ai` opts out to raw results, `--use-ai` forces
+  the loop. AI markdown carries the session id plus a
+  `web-search --session <id>` re-read hint so the raw results stay
+  reviewable.
 - **Session overview** — the numbered result listing the summarizer reasons
   over (top 10 by default), with full per-result records reachable via the
   `read_session_entry` tool.

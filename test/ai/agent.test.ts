@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildSessionOverview,
 	extractJson,
+	isAiConfigured,
 	planQuery,
 	validateFootnotes,
 	validatePlan,
@@ -157,6 +158,39 @@ describe("validateFootnotes", () => {
 		expect(validateFootnotes(bold, 2)).toEqual([]);
 		const bare = good.replace("## Sources", "Sources");
 		expect(validateFootnotes(bare, 2)).toEqual([]);
+	});
+});
+
+describe("isAiConfigured", () => {
+	const base: Config = {
+		searxngUrl: "https://search.example/",
+		timeoutMs: 10000,
+		storeDir: "/tmp/sessions",
+		debug: false,
+	};
+
+	it("is false without openai config", () => {
+		delete process.env.OPENAI_API_KEY;
+		expect(isAiConfigured(base)).toBe(false);
+	});
+
+	it("is false with a model but no key", () => {
+		delete process.env.OPENAI_API_KEY;
+		expect(isAiConfigured({ ...base, openai: { model: "m" } })).toBe(false);
+	});
+
+	it("is true with a model and an env key", () => {
+		process.env.OPENAI_API_KEY = "sk-test";
+		try {
+			expect(isAiConfigured({ ...base, openai: { model: "m" } })).toBe(true);
+		} finally {
+			delete process.env.OPENAI_API_KEY;
+		}
+	});
+
+	it("is true with a model and a config-file key", () => {
+		delete process.env.OPENAI_API_KEY;
+		expect(isAiConfigured({ ...base, openai: { model: "m", apiKey: "sk-file" } })).toBe(true);
 	});
 });
 
