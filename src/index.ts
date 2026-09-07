@@ -59,13 +59,15 @@ export async function search(query: string, options: SearchOptions = {}): Promis
 
 export { readSession } from "./session.js";
 export { renderMarkdown } from "./markdown.js";
+export { renderDoctorReport, runDoctor } from "./doctor.js";
+export type { DoctorCheck, DoctorDeps, DoctorOptions, DoctorReport } from "./doctor.js";
 export type { DebugLogger } from "./debug.js";
 export { createDebugLogger, resolveDebug } from "./debug.js";
 export type {
   Config,
   ConfigFile,
 } from "./config.js";
-export { defaultStoreDir, loadConfig } from "./config.js";
+export { defaultStoreDir, loadConfig, openaiApiKey } from "./config.js";
 export type {
   SafeSearch,
   SearchOptions,

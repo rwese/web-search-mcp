@@ -39,7 +39,7 @@ function renderExpanded(text: string, theme: any): Text {
 
 export default function (pi: ExtensionAPI) {
     pi.registerTool({
-        name: "web_search",
+        name: "search",
         label: "Web Search",
         description:
             "Search the web via SearXNG. Returns relevant results with summaries, saved to a search session.",
@@ -49,7 +49,7 @@ export default function (pi: ExtensionAPI) {
         renderCall(args, theme, _context) {
             const text = new Text("", 0, 0);
             text.setText(
-                theme.fg("toolTitle", theme.bold("web_search ")) +
+                theme.fg("toolTitle", theme.bold("search ")) +
                     theme.fg("muted", `"${args.query}"`),
             );
             return text;

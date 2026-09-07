@@ -37,8 +37,9 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
   it does not reimplement search logic.
 - **Configuration** — resolved by `loadConfig()` from (highest precedence)
   environment variables, the XDG config file
-  (`$XDG_CONFIG_HOME/web-search/config.json`), and defaults. Non-secret values
-  only; API keys stay in the environment.
+  (`$XDG_CONFIG_HOME/web-search/config.json`), and defaults. `OPENAI_API_KEY`
+  wins when set; `openai.apiKey` in the config file is the fallback (keep the
+  file mode 0600).
 - **Search plan** — the steering decision the model makes before a `--use-ai`
   search: which categories/engines (plus optional language/timeRange) fit the
   query's intent. Constrained to what the instance's `/config` actually offers;
@@ -67,8 +68,12 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
   `engine`, `category`); `--json` carries the full structured result set (issue #5, #8).
 - The pi wrapper surfaces the `sessionId` in its collapsed render so the user
   can open full details later (issue #10).
-- MCP's first build-out ships a single `web_search` tool; a `search_details`
+- MCP's first build-out ships a single `search` tool; a `search_details`
   full-record tool is deferred until the MCP server is in use (issue #9).
+- `--doctor` validates the setup (config, store writability, SearXNG `/config`,
+  enabled engines, probe search, LLM reachability); the probe search is
+  side-effect-free (no session persisted) and the LLM check reads `/models`
+  only (no chat call, no token cost).
 - `--use-ai` runs a LangChain plan → search → summarize loop; explicit CLI
   flags always override the AI plan; footnote failures retry once as a direct
   call, never a second tool loop.

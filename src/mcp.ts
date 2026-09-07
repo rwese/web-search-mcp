@@ -3,7 +3,7 @@
  * web-search-mcp — MCP server entrypoint for the agent-agnostic web-search package.
  *
  * Locked by wayfinder ticket #9 (MCP server surface):
- *   - `web_search` is the only tool in the first build-out: query (required),
+ *   - `search` is the only tool in the first build-out: query (required),
  *     categories, engines, language, timeRange, safeSearch, pageNo, maxResults
  *     (default 10). Returns lean markdown (session id + top-N results).
  *   - no flag = stdio transport; `--http [port]` / PORT env = streamable HTTP
@@ -32,21 +32,19 @@ const MAX_RESULTS_LIMIT = 50;
 
 function registerTools(server: McpServer): void {
 	server.registerTool(
-		"web_search",
+		"search",
 		{
 			title: "Web Search",
-			description:
-				"Search the web via SearXNG and return the top results. Returns a lean readable " +
-				"summary: session id, then title/url/snippet/engine/category for each result.",
+			description: "Search the web for relevant and recent information.",
 			inputSchema: z.object({
 				query: z.string().min(1).describe("the search query"),
 				categories: z.array(z.string()).optional().describe("result categories, e.g. general, news"),
-				engines: z.array(z.string()).optional().describe("specific search engines to use"),
+				engines: z.array(z.string()).optional().describe("specific search engines to use (default: all available engines)"),
 				language: z.string().optional().describe("language code, e.g. en, de"),
 				timeRange: z
 					.enum(["day", "month", "year"])
 					.optional()
-					.describe("only results from this time range"),
+					.describe("only results from this time range (e.g. day for news from the last 24h)"),
 				safeSearch: z
 					.union([z.literal(0), z.literal(1), z.literal(2)])
 					.optional()
@@ -75,7 +73,7 @@ function registerTools(server: McpServer): void {
 			} catch (err) {
 				return {
 					isError: true,
-					content: [{ type: "text" as const, text: `web_search failed: ${(err as Error).message}` }],
+					content: [{ type: "text" as const, text: `search failed: ${(err as Error).message}` }],
 				};
 			}
 		},

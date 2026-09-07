@@ -27,13 +27,15 @@ node dist/cli.js "what is kubernetes"                  # search
 node dist/cli.js "what is kubernetes" --json           # full structured response
 node dist/cli.js --session 3f9a2c7e-what-is-kubernetes # re-read a persisted session
 node dist/cli.js "best gnocchi recipe" --use-ai        # AI answer: plan -> search -> summarize
+node dist/cli.js --doctor                              # validate setup (SearXNG, engines, LLM)
 ```
 
 CLI flags: `--categories <csv>`, `--engines <csv>`, `--language <code>`,
 `--time-range day|month|year`, `--safesearch 0|1|2`, `--page <n>`,
-`--session <id>`, `--use-ai`, `--debug`, `--json`, `--help`.
-Exit codes: `0` ok (even empty results), `1` runtime error, `2` usage.
-A query and `--session` are mutually exclusive.
+`--session <id>`, `--use-ai`, `--debug`, `--doctor`, `--json`, `--help`.
+Exit codes: `0` ok (even empty results; for `--doctor`: all checks passed),
+`1` runtime error (or `--doctor` found issues), `2` usage.
+A query and `--session` are mutually exclusive; `--doctor` takes neither.
 
 `--debug` enables verbose stderr logging — search request URLs and timing,
 session persistence, and (with `--use-ai`) the planner's plan decision, the
@@ -48,7 +50,7 @@ AI answers (`--use-ai`) need an OpenAI-compatible endpoint too:
 ```sh
 export OPENAI_BASE_URL=https://litellm.void.cold.at/v1
 export OPENAI_MODEL=deepseek-v4-flash
-export OPENAI_API_KEY=<key>   # env only, never in files
+export OPENAI_API_KEY=<key>   # env wins; or openai.apiKey in the XDG config file (mode 0600)
 node dist/cli.js "latest pi 5 news" --use-ai
 ```
 
@@ -90,12 +92,13 @@ node dist/mcp.js --http 3000   # or PORT=3000 node dist/mcp.js --http
 declares `./extensions`):
 
 ```sh
-pi install /abs/path/web-search-mcp   # then use the web_search tool
+pi install /abs/path/web-search-mcp   # then use the search tool
 ```
 
-Tool contract (`web_search` — the only tool): required `query: string`;
-optional `categories: string[]`, `engines: string[]`, `language: string`,
-`timeRange: day|month|year`, `safeSearch: 0|1|2`, `pageNo: number`,
+Tool contract (`search` — the only tool): required `query: string`;
+optional `categories: string[]`, `engines: string[]` (default: all available
+engines), `language: string`, `timeRange: day|month|year` (e.g. day for news
+from the last 24h), `safeSearch: 0|1|2`, `pageNo: number`,
 `maxResults: number` (default 10, max 50). Returns lean markdown:
 `Session:` id line, then `title` / `url` / `snippet` / `engine` / `category`
 per result. Agent guidance:
@@ -130,10 +133,11 @@ entrypoints before startup; the core itself never loads dotenv.
 | `WEB_SEARCH_DEBUG` | no       | `0`     | verbose stderr logging; `1` to enable                |
 | `OPENAI_BASE_URL`   | for `--use-ai` | — | OpenAI-compatible endpoint                           |
 | `OPENAI_MODEL`      | for `--use-ai` | — | model name (e.g. `deepseek-v4-flash`)                |
-| `OPENAI_API_KEY`    | for `--use-ai` | — | key; env only, must be a single line                 |
+| `OPENAI_API_KEY`    | for `--use-ai` | — | key; env wins, `openai.apiKey` in the XDG config file is the fallback (mode 0600, must be a single line) |
 | `PORT`              | no       | `3000`  | MCP `--http` port when no port arg is given          |
 
-XDG config file example (secrets stay out):
+XDG config file example (`openai.apiKey` is the fallback when `OPENAI_API_KEY`
+is unset — keep the file mode 0600 then):
 
 ```json
 {
@@ -141,9 +145,12 @@ XDG config file example (secrets stay out):
   "timeoutMs": 10000,
   "storeDir": "/custom/path/to/sessions",
   "debug": false,
-  "openai": { "baseUrl": "https://litellm.void.cold.at/v1", "model": "deepseek-v4-flash" }
+  "openai": { "baseUrl": "https://litellm.void.cold.at/v1", "model": "deepseek-v4-flash", "apiKey": "sk-..." }
 }
 ```
+
+`openai.apiKey` is a fallback for `OPENAI_API_KEY` (env wins). Keep the file
+mode 0600 when it holds a key.
 
 Sessions default to `$XDG_DATA_HOME/web-search/sessions/` (fallback
 `~/.local/share/web-search/sessions/`). Each session is a directory named
@@ -165,6 +172,21 @@ pnpm validate   # typecheck (tsgo) + lint (eslint 9) + tests (vitest); run befor
 pnpm build      # emit dist/ (bins get chmod +x)
 pnpm test       # vitest run
 ```
+
+### `--doctor`
+
+```sh
+node dist/cli.js --doctor         # human-readable check list
+node dist/cli.js --doctor --json  # structured DoctorReport
+```
+
+Checks, in order: config loads (`SEARXNG_URL` present) → session store
+writable → SearXNG `/config` reachable → instance has enabled engines → a
+side-effect-free `/search` probe (raw, no session persisted) → LLM endpoint
+reachable via `GET {baseUrl}/models` when OpenAI config is present (skipped
+otherwise, no chat call so no token cost). The LLM check also rejects a
+multiline `OPENAI_API_KEY` (the vault secret has a marker comment after the
+key — only the first line is valid). Exit `0` only when every check passes.
 
 ### How `--use-ai` works
 

@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 import type { BaseMessage, MessageContent } from "@langchain/core/messages";
 import { z } from "zod";
 import type { Config } from "./config.js";
+import { openaiApiKey } from "./config.js";
 import { createDebugLogger, resolveDebug, toLogger, type DebugLogger } from "./debug.js";
 import { search } from "./index.js";
 import { enabledEngineNames, fetchInstanceConfig, instanceCategories } from "./searxng.js";
@@ -51,7 +52,7 @@ const DEFAULT_MODEL_CALL_LIMIT = 10;
  */
 export function modelFromConfig(config: Config, opts: { sessionId?: string } = {}): ChatOpenAI {
 	const modelName = config.openai?.model;
-	const apiKey = process.env.OPENAI_API_KEY;
+	const apiKey = openaiApiKey(config);
 	if (!modelName) {
 		throw new SearchError(
 			"No model configured. Set OPENAI_MODEL in the environment or openai.model in the XDG config file.",
@@ -59,7 +60,7 @@ export function modelFromConfig(config: Config, opts: { sessionId?: string } = {
 	}
 	if (!apiKey) {
 		throw new SearchError(
-			"OPENAI_API_KEY is not set. API keys stay in the environment, never in the config file.",
+			"OPENAI_API_KEY is not set. Set it in the environment or openai.apiKey in the XDG config file.",
 		);
 	}
 	const baseURL = config.openai?.baseUrl;

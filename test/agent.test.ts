@@ -186,7 +186,28 @@ describe("modelFromConfig", () => {
 
 	it("throws when OPENAI_API_KEY is missing", () => {
 		delete process.env.OPENAI_API_KEY;
-		expect(() => modelFromConfig(config)).toThrow("OPENAI_API_KEY is not set");
+		expect(() => modelFromConfig({ ...config, openai: { ...config.openai } })).toThrow(
+			"OPENAI_API_KEY is not set",
+		);
+	});
+
+	it("falls back to openai.apiKey from the config file", () => {
+		delete process.env.OPENAI_API_KEY;
+		const model = modelFromConfig({
+			...config,
+			openai: { ...config.openai, apiKey: "sk-file" },
+		});
+		expect(model).toBeDefined();
+	});
+
+	it("prefers OPENAI_API_KEY over the config file value", () => {
+		process.env.OPENAI_API_KEY = "sk-env";
+		const model = modelFromConfig({
+			...config,
+			openai: { ...config.openai, apiKey: "sk-file" },
+		});
+		expect(model.apiKey).toBe("sk-env");
+		delete process.env.OPENAI_API_KEY;
 	});
 
 	it("stamps a generated x-opencode-session by default", () => {

@@ -14,8 +14,8 @@ import { resolveEnvDebug } from "./debug.js";
  *   3. defaults
  *
  * The core never loads dotenv itself; the CLI/MCP entrypoints load `$PWD/.env`
- * before the process starts. The config file holds non-secret values only —
- * API keys stay in the environment.
+ * before the process starts. The XDG config file may hold `openai.apiKey` as
+ * a fallback when OPENAI_API_KEY is unset — keep the file mode 0600.
  */
 export type Config = {
   searxngUrl: string;
@@ -26,6 +26,8 @@ export type Config = {
   openai?: {
     baseUrl?: string;
     model?: string;
+    /** OPENAI_API_KEY wins when set; otherwise the config file value. */
+    apiKey?: string;
   };
 };
 
@@ -37,6 +39,7 @@ export type ConfigFile = {
   openai?: {
     baseUrl?: string;
     model?: string;
+    apiKey?: string;
   };
 };
 
@@ -85,17 +88,27 @@ export async function loadConfig(): Promise<Config> {
 
   const envDebug = resolveEnvDebug();
 
+  const openaiBaseUrl = process.env.OPENAI_BASE_URL || file.openai?.baseUrl;
+  const openaiModel = process.env.OPENAI_MODEL || file.openai?.model;
+  const openaiApiKey = process.env.OPENAI_API_KEY || file.openai?.apiKey;
+
   return {
     searxngUrl,
     timeoutMs,
     storeDir: file.storeDir || defaultStoreDir(),
     debug: envDebug ?? file.debug ?? false,
     openai:
-      file.openai || process.env.OPENAI_BASE_URL || process.env.OPENAI_MODEL
+      file.openai || openaiBaseUrl || openaiModel || openaiApiKey
         ? {
-            baseUrl: process.env.OPENAI_BASE_URL || file.openai?.baseUrl,
-            model: process.env.OPENAI_MODEL || file.openai?.model,
+            baseUrl: openaiBaseUrl,
+            model: openaiModel,
+            apiKey: openaiApiKey,
           }
         : undefined,
   };
+}
+
+/** Resolve the OpenAI API key: OPENAI_API_KEY wins, else the config file value. */
+export function openaiApiKey(config: Config): string | undefined {
+  return process.env.OPENAI_API_KEY || config.openai?.apiKey;
 }

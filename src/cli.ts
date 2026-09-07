@@ -8,6 +8,8 @@
  *   - flags: --categories/--engines (csv), --language, --time-range
  *     (day|month|year), --safesearch (0|1|2), --page, --json, --help.
  *   - markdown default shows top 10; --json emits the full SearchResponse.
++ *   - --doctor validates the setup (config, SearXNG, engines, LLM) and
++ *     exits 0 only when every check passes.
  *   - exit 0 = ok (even empty results), 1 = runtime error, 2 = usage.
  */
 import { config as loadDotenv } from "dotenv";
@@ -15,6 +17,7 @@ import type { SearchOptions, SearchResponse, SessionRecord } from "./index.js";
 import { loadConfig, readSession, renderMarkdown, search, SearchError } from "./index.js";
 import type { AiAnswer } from "./agent.js";
 import { answerQuery, modelFromConfig, summarizeSession } from "./agent.js";
+import { renderDoctorReport, runDoctor } from "./doctor.js";
 
 loadDotenv({ path: `${process.cwd()}/.env` });
 
@@ -25,6 +28,7 @@ const USAGE = `web-search — SearXNG-backed web search
 Usage:
   web-search "<query>" [flags]
   web-search --session <id> [--json]
+  web-search --doctor [--json]
   web-search --help
 
 Flags:
@@ -37,10 +41,11 @@ Flags:
   --session <id>       show a persisted search session instead of searching
   --use-ai             answer via the LangChain agentic loop (plan -> search -> summarize)
   --debug              verbose stderr logging (search requests, AI loop, tool use)
+  --doctor             validate setup: config, SearXNG, engines, probe search, LLM
   --json               structured output (default: markdown)
   --help               show this help
 
-Exit codes: 0 ok (even empty results), 1 runtime error, 2 usage.`;
+Exit codes: 0 ok (even empty results; for --doctor: all checks passed), 1 runtime error (or --doctor found issues), 2 usage.`;
 
 type ParsedArgs = {
 	help?: boolean;
@@ -49,10 +54,11 @@ type ParsedArgs = {
 	json?: boolean;
 	useAi?: boolean;
 	debug?: boolean;
+	doctor?: boolean;
 	options: SearchOptions;
 };
 
-const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useAi" | "debug"> = {
+const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useAi" | "debug" | "doctor"> = {
 	"--categories": "categories",
 	"--engines": "engines",
 	"--language": "language",
@@ -63,6 +69,7 @@ const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useA
 	"--session": "session",
 	"--use-ai": "useAi",
 	"--debug": "debug",
+	"--doctor": "doctor",
 };
 
 function fail(message: string): never {
@@ -83,6 +90,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 	let json = false;
 	let useAi = false;
 	let debug = false;
+	let doctor = false;
 	let sessionId: string | undefined;
 
 	for (let i = 0; i < argv.length; i += 1) {
@@ -101,6 +109,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 		}
 		if (arg === "--debug") {
 			debug = true;
+			continue;
+		}
+		if (arg === "--doctor") {
+			doctor = true;
 			continue;
 		}
 		const key = FLAG_KEYS[arg];
@@ -155,14 +167,17 @@ function parseArgs(argv: string[]): ParsedArgs {
 	}
 
 	const query = positionals.join(" ").trim() || undefined;
+	if (doctor && (query || sessionId || useAi || Object.keys(options).length > 0)) {
+		fail("--doctor takes no query, --session, --use-ai, or search flags");
+	}
 	if (query && sessionId) {
 		fail("pass either a query or --session <id>, not both");
 	}
-	if (!help && !query && !sessionId) {
+	if (!help && !doctor && !query && !sessionId) {
 		fail("missing query");
 	}
 
-	return { help, query, sessionId, json, useAi, debug, options };
+	return { help, query, sessionId, json, useAi, debug, doctor, options };
 }
 
 function printUsage(): void {
@@ -187,6 +202,16 @@ async function run(): Promise<number> {
 	if (parsed.help) {
 		printUsage();
 		return 0;
+	}
+
+	if (parsed.doctor) {
+		const report = await runDoctor({ ...(parsed.debug ? { debug: true } : {}) });
+		if (parsed.json) {
+			process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+		} else {
+			process.stdout.write(`${renderDoctorReport(report)}\n`);
+		}
+		return report.ok ? 0 : 1;
 	}
 
 	if (parsed.sessionId) {

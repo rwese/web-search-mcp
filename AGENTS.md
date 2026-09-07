@@ -28,7 +28,8 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
 
 - Copy `.env.example` → `$PWD/.env` (gitignored). `SEARXNG_URL` is required;
   the core fails fast without it.
-- API keys stay in the environment, never in files. The dev/test litellm key
+- `OPENAI_API_KEY` wins when set; `openai.apiKey` in the XDG config file is
+  the fallback (keep the file mode 0600). The dev/test litellm key
   is in the cold-at vault as `web-search/litellm-api-key` — read
   `docs/agents/agentic-loop.md` for its multiline gotcha before using it.
 - Precedence: CLI flag > env > XDG config file > defaults. Sessions default to
