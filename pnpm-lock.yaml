@@ -17,6 +17,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.30.0
         version: 1.30.0(@cfworker/json-schema@4.1.1)(supports-color@7.2.0)(zod@3.25.76)
+      '@sinclair/typebox':
+        specifier: ^0.34.49
+        version: 0.34.52
       cors:
         specifier: ^2.8.5
         version: 2.8.6
@@ -37,14 +40,11 @@ importers:
         specifier: ^9.0.0
         version: 9.39.5
       '@mariozechner/pi-coding-agent':
-        specifier: '*'
+        specifier: ^0.73.0
         version: 0.73.1(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(supports-color@7.2.0)(zod@3.25.76))(supports-color@7.2.0)(ws@8.21.3)(zod@3.25.76)
       '@mariozechner/pi-tui':
-        specifier: '*'
+        specifier: ^0.73.0
         version: 0.73.1
-      '@sinclair/typebox':
-        specifier: ^0.34.49
-        version: 0.34.52
       '@types/cors':
         specifier: ^2.8.17
         version: 2.8.19

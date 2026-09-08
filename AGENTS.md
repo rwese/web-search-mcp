@@ -1,4 +1,4 @@
-# AGENTS.md — @ai-factory/web-search
+# AGENTS.md — @rwese/web-search-mcp
 
 SearXNG-backed web search: a shared core (`src/`) consumed by a CLI
 (`web-search`), an MCP server (`web-search-mcp`, stdio + streamable HTTP), and

@@ -1,6 +1,6 @@
 # CONTEXT
 
-Glossary for the `@ai-factory/web-search` package. Canonical terms, sharpened
+Glossary for the `@rwese/web-search-mcp` package. Canonical terms, sharpened
 during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker).
 
 ## Terms

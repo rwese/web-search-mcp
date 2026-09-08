@@ -1,6 +1,6 @@
 # Development
 
-Contributor notes for `@ai-factory/web-search`. User-facing docs live in
+Contributor notes for `@rwese/web-search-mcp`. User-facing docs live in
 `README.md`; this file covers build, architecture, and internals.
 
 ## Commands

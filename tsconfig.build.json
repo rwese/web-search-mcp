@@ -8,5 +8,5 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["src/index.ts", "src/ai/agent.ts", "src/surfaces/cli/cli.ts", "src/surfaces/mcp/mcp.ts", "src/version.ts"]
+  "include": ["src"]
 }

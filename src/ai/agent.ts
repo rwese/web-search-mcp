@@ -18,6 +18,12 @@ import { z } from "zod";
 import type { Config } from "../infra/config.js";
 import { openaiApiKey } from "../infra/config.js";
 import { createDebugLogger, resolveDebug, toLogger, type DebugLogger } from "../infra/debug.js";
+import {
+	footnoteFixMessage,
+	plannerPrompt,
+	SUMMARIZER_SYSTEM_PROMPT,
+	summarizerUserMessage,
+} from "./prompts.js";
 import { search } from "../core/search.js";
 import { enabledEngineNames, fetchInstanceConfig, instanceCategories } from "../infra/searxng.js";
 import type { SearchOptions, SearchResult } from "../core/types.js";
@@ -115,19 +121,7 @@ export async function planQuery(
 ): Promise<SearchPlan> {
 	const debug = toLogger(opts.debug);
 	debug.log('agent', `plan "${query}"`, { categories: categories.length, engines: engines.length });
-	const prompt = [
-		"You steer a web search. Given the user query, pick the SearXNG categories",
-		"and engines that best fit its intent (e.g. video/how-to intent -> video engines,",
-		"encyclopedic intent -> wikipedia, code intent -> code-related engines).",
-		`Available categories: ${categories.join(", ") || "(none)"}`,
-		`Available engines: ${engines.join(", ") || "(none)"}`,
-		"Rules: use ONLY names from the lists above; an empty array means no restriction;",
-		'language is an ISO code (e.g. "en") or omitted; timeRange is day, month, year, or omitted.',
-		"Respond with a single JSON object and nothing else, e.g.:",
-		'{"categories": ["videos"], "engines": ["youtube"], "language": "en"}',
-		"",
-		`User query: "${query}"`,
-	].join("\n");
+	const prompt = plannerPrompt({ query, categories, engines });
 	const raw = await model.invoke(prompt);
 	const text = contentToText(raw.content);
 	const parsed = SearchPlanSchema.safeParse(extractJson(text));
@@ -245,16 +239,6 @@ export function validateFootnotes(summary: string, resultCount: number): string[
 	return errors;
 }
 
-const SUMMARIZER_SYSTEM_PROMPT = [
-	"You are a research summarizer. Answer the user's original query using ONLY the provided search results.",
-	"Rules:",
-	"- Base every externally verifiable claim on the results. Never add facts from your own knowledge.",
-	"- Cite each externally verifiable claim with a footnote marker [^n], where n is the 1-based result number from the session overview.",
-	'- End with a "Sources" section listing every cited result as `[^n]: [title](url)`.',
-	"- Use the read_session_entry tool to inspect a full result record whenever a snippet is not enough.",
-	"- If the results do not contain enough information to answer, say so plainly instead of guessing.",
-].join("\n");
-
 /**
  * Summarize a persisted session for the original query via a tool-calling
  * agent. The agent sees the session overview inline and can pull full
@@ -303,13 +287,7 @@ export async function summarizeSession(
 		middleware: [modelCallLimitMiddleware({ threadLimit: maxModelCalls, exitBehavior: "end" })],
 	});
 
-	const userContent = [
-		`Original query: "${originalQuery}"`,
-		"",
-		overview,
-		"",
-		"Summarize the results as an answer to the original query, with footnotes.",
-	].join("\n");
+	const userContent = summarizerUserMessage({ originalQuery, overview });
 
 	const invokeOpts = { recursionLimit: maxModelCalls * 3 + 10 };
 	debug.log('agent', 'summarizer agent.invoke start', { recursionLimit: invokeOpts.recursionLimit });
@@ -326,16 +304,8 @@ export async function summarizeSession(
 
 	// One retry as a single direct call (no tool loop), so the agent cannot
 	// spin on tool calls and hit the graph recursion cap while fixing format.
-	const fixPrompt = [
-		"Rewrite the following draft as a correct summary.",
-		"Keep its facts and citations; fix ONLY the footnote problems:",
-		...errors.map((e) => `- ${e}`),
-		"",
-		"Draft:",
-		text,
-	].join("\n");
 	const fix = await model.invoke(
-		`${SUMMARIZER_SYSTEM_PROMPT}\n\nOriginal query: "${originalQuery}"\n\nSession context:\n${overview}\n\n${fixPrompt}`,
+		footnoteFixMessage({ originalQuery, overview, errors, draft: text }),
 	);
 	const fixed = contentToText(fix.content);
 	debug.log('agent', 'footnote fix call done', { chars: fixed.length });

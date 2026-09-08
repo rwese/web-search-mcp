@@ -1,21 +1,27 @@
-# @ai-factory/web-search
+# @rwese/web-search-mcp
 
 Web search powered by your own [SearXNG](https://docs.searxng.org/) instance.
 Search from the terminal, from an AI agent (MCP), or from pi — every search is
 saved as a reusable **session** on disk.
 
-> **New here?** No install needed — run it straight from the repo with
+> **New here?** No install needed — run it straight from npm with
 > `npx` (see below), set `SEARXNG_URL`, and search. The
 > [CLI guide](#cli--usage) covers everything, with example output for every
 > command.
 
-The package is not on the npm registry — `npx` fetches it from this git
-repo (the `git+ssh` spec works anywhere you have push/pull access; it
-builds itself on install via the `prepare` script):
+Install from the npm registry (bins land on your `PATH`):
+
+```sh
+npm install -g @rwese/web-search-mcp
+export SEARXNG_URL=https://search.example.com   # required
+web-search --doctor
+```
+
+Or run without installing (subsequent runs reuse the npx cache):
 
 ```sh
 export SEARXNG_URL=https://search.example.com   # required
-npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-search --doctor
+npx -y -p @rwese/web-search-mcp web-search --doctor
 ```
 
 Output when your setup is healthy:
@@ -40,12 +46,14 @@ web-search doctor
 
 ## CLI — usage
 
-Run it via `npx` (no install — fetches and builds from this repo on first
-use; subsequent runs reuse the npx cache):
+After `npm install -g @rwese/web-search-mcp` the `web-search` bin is on your
+`PATH`. Without the global install, prefix every command with
+`npx -y -p @rwese/web-search-mcp` (fetches the package on first use;
+subsequent runs reuse the npx cache):
 
 ```sh
 export SEARXNG_URL=https://search.example.com   # required, once per shell
-npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-search "<query>" [flags]
+web-search "<query>" [flags]
 ```
 
 Bare bin name below stands for that `npx … web-search` prefix:
@@ -79,7 +87,7 @@ Exit codes: `0` success (even with zero results), `1` runtime error,
 ### Search
 
 ```sh
-npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-search "what is kubernetes"
+web-search "what is kubernetes"
 ```
 
 Output is readable markdown showing the top 10 hits (the full result set is
@@ -102,8 +110,8 @@ always saved — see [sessions](#sessions)):
 Refine with filters — all flags combine freely:
 
 ```sh
-npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-search "fusion breakthrough" --categories news --time-range day --language en
-npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-search "kubernetes ingress" --engines stackoverflow,github --page 2
+web-search "fusion breakthrough" --categories news --time-range day --language en
+web-search "kubernetes ingress" --engines stackoverflow,github --page 2
 ```
 
 > A query and `--session` are mutually exclusive. `--doctor` takes neither.
@@ -116,7 +124,7 @@ with `title`, `url`, `snippet`, `publishedDate`, `score`, `engines`,
 `unresponsiveEngines`:
 
 ```sh
-npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-search "what is kubernetes" --json
+web-search "what is kubernetes" --json
 ```
 
 ```json
@@ -164,7 +172,7 @@ Every search persists an immutable session on disk and prints its id in the
 `**Session:**` line. Re-read it any time — from any surface (CLI, MCP, pi):
 
 ```sh
-NPX="npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-search"
+NPX="web-search"
 $NPX --session cc6a54d5-what-is-kubernetes
 $NPX --session cc6a54d5-what-is-kubernetes --json
 ```
@@ -190,7 +198,7 @@ Setup (needs an OpenAI-compatible endpoint in addition to SearXNG):
 export OPENAI_BASE_URL=https://litellm.void.cold.at/v1
 export OPENAI_MODEL=deepseek-v4-flash
 export OPENAI_API_KEY=<key>   # env wins; or openai.apiKey in the XDG config file (mode 0600)
-npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-search "latest pi 5 news" --use-ai
+web-search "latest pi 5 news" --use-ai
 ```
 
 ```
@@ -271,7 +279,7 @@ interchangeable. Pick whichever your harness speaks.
   "mcpServers": {
     "web-search": {
       "command": "npx",
-      "args": ["-y", "-p", "git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git", "web-search-mcp"],
+      "args": ["-y", "-p", "@rwese/web-search-mcp", "web-search-mcp"],
       "env": {
         "SEARXNG_URL": "https://search.example.com",
         "OPENAI_API_KEY": "sk-..."
@@ -284,7 +292,7 @@ interchangeable. Pick whichever your harness speaks.
 **2. MCP via streamable HTTP** (shared server for multiple agents):
 
 ```sh
-npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-search-mcp --http 3000   # or PORT=3000 ... web-search-mcp --http
+web-search-mcp --http 3000   # or PORT=3000 ... web-search-mcp --http
 # endpoint: POST/GET/DELETE http://localhost:3000/mcp
 ```
 
@@ -300,7 +308,7 @@ npx -y -p git+ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git web-
 `"pi"` key):
 
 ```sh
-pi install /abs/path/web-search-mcp   # then use the search tool
+pi install npm:@rwese/web-search-mcp   # then use the search tool
 ```
 
 Tool contract (`search` — the only tool): required `query: string`; optional
