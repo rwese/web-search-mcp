@@ -40,22 +40,20 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
   (`$XDG_CONFIG_HOME/web-search/config.json`), and defaults. `OPENAI_API_KEY`
   wins when set; `openai.apiKey` in the config file is the fallback (keep the
   file mode 0600).
-- **Search plan** — the steering decision the model makes before a `--use-ai`
-  search: which categories/engines (plus optional language/timeRange) fit the
-  query's intent. Constrained to what the instance's `/config` actually offers;
-  an empty pick means no restriction.
+- **Search plan** — the decomposition of a user's request into focused,
+  complementary search queries, with shared category, engine, language, and
+  time-range restrictions. An empty category or engine selection means no restriction.
 - **AI answer** — the result of the agentic loop (`answerQuery`): the search
-  plan, the persisted `sessionId`, and a footnote-cited summary of the
+  plan, the search sessions and their queries, and a footnote-cited synthesis of the
   original query. The CLI default for a query when the LLM is configured
   (model + API key); `--no-ai` opts out to raw results, `--use-ai` forces
   the loop. AI markdown carries the session id plus a
   `web-search --session <id>` re-read hint so the raw results stay
   reviewable.
-- **Session overview** — the numbered result listing the summarizer reasons
-  over (top 10 by default), with full per-result records reachable via the
-  `read_session_entry` tool.
-- **Footnote** — a `[^n]` citation binding a claim to the n-th result of the
-  session, backed by an entry in the summary's Sources section. Every
+- **Session overview** — a top-result listing labeled with its search session
+  and search query. Result numbers are unique across the sessions in an AI answer.
+- **Footnote** — a `[^n]` citation binding a claim to a globally numbered result
+  across the answer's search sessions, backed by an entry in the Sources section. Every
   externally verifiable claim carries one; see `docs/agents/agentic-loop.md`.
 - **Debug logging** — verbose stderr-only diagnostics (search request URLs +
   timing, session persistence, and with `--use-ai` the planner decision,

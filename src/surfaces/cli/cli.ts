@@ -123,7 +123,7 @@ async function run(): Promise<number> {
 					process.stdout.write(`${JSON.stringify(answer, null, 2)}\n`);
 				} else {
 					process.stdout.write(
-						`**Session:** ${answer.sessionId}\n\n${answer.summary}\n\nRaw results: web-search --session ${answer.sessionId}\n`,
+						`${answer.sessions.map((session) => `**Session:** ${session.sessionId}\nSearch query: ${JSON.stringify(session.query)}`).join("\n\n")}\n\n${answer.summary}\n\n${answer.sessions.map((session) => `Raw results: web-search --session ${session.sessionId}`).join("\n")}\n`,
 					);
 				}
 				return 0;

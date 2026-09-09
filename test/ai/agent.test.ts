@@ -4,6 +4,7 @@ import {
 	extractJson,
 	isAiConfigured,
 	planQuery,
+	resolveRecursionLimit,
 	validateFootnotes,
 	validatePlan,
 	modelFromConfig,
@@ -13,6 +14,7 @@ import type { SessionLike } from "../../src/ai/agent.js";
 
 const SESSION: SessionLike = {
 	sessionId: "abc12345-test",
+	query: "kubernetes",
 	results: [
 		{
 			title: "Kubernetes docs",
@@ -61,7 +63,7 @@ describe("planQuery", () => {
 		const plan = await planQuery(
 			{
 				invoke: async () => ({
-					content: '```json\n{"categories": ["videos"], "engines": ["youtube"]}\n```',
+					content: '```json\n{"queries": [" kubernetes installation ", "kubernetes setup tutorial"], "categories": ["videos"], "engines": ["youtube"]}\n```',
 				}),
 			},
 			"how to install kubernetes",
@@ -70,6 +72,7 @@ describe("planQuery", () => {
 		);
 		expect(plan.categories).toEqual(["videos"]);
 		expect(plan.engines).toEqual(["youtube"]);
+		expect(plan.queries).toEqual(["kubernetes installation", "kubernetes setup tutorial"]);
 	});
 
 	it("throws SearchError on an invalid plan", async () => {
@@ -87,15 +90,15 @@ describe("planQuery", () => {
 describe("validatePlan", () => {
 	it("drops picks the instance does not have", () => {
 		const plan = validatePlan(
-			{ categories: ["videos", "nope"], engines: ["youtube", "ghost"], language: "en" },
+			{ queries: ["q"], categories: ["videos", "nope"], engines: ["youtube", "ghost"], language: "en" },
 			["videos"],
 			["youtube"],
 		);
-		expect(plan).toEqual({ categories: ["videos"], engines: ["youtube"], language: "en" });
+		expect(plan).toEqual({ queries: ["q"], categories: ["videos"], engines: ["youtube"], language: "en" });
 	});
 
 	it("keeps empty picks empty (no restriction)", () => {
-		const plan = validatePlan({ categories: [], engines: [] }, ["videos"], ["youtube"]);
+		const plan = validatePlan({ queries: ["q"], categories: [], engines: [] }, ["videos"], ["youtube"]);
 		expect(plan.categories).toEqual([]);
 		expect(plan.engines).toEqual([]);
 	});
@@ -104,7 +107,9 @@ describe("validatePlan", () => {
 describe("buildSessionOverview", () => {
 	it("numbers results with meta lines", () => {
 		const text = buildSessionOverview(SESSION);
-		expect(text).toContain("Session abc12345-test, 2 result(s):");
+		expect(text).toContain("## Search session: abc12345-test");
+		expect(text).toContain('### Search query: "kubernetes"');
+		expect(text).toContain("### Results (2 total)");
 		expect(text).toContain("1. Kubernetes docs");
 		expect(text).toContain("https://kubernetes.io/docs/");
 		expect(text).toContain("(wikipedia · general · 2024-01-01T00:00:00Z)");
@@ -191,6 +196,30 @@ describe("isAiConfigured", () => {
 	it("is true with a model and a config-file key", () => {
 		delete process.env.OPENAI_API_KEY;
 		expect(isAiConfigured({ ...base, openai: { model: "m", apiKey: "sk-file" } })).toBe(true);
+	});
+});
+
+describe("resolveRecursionLimit", () => {
+	it("scales with maxModelCalls (* 4 + 10)", () => {
+		expect(resolveRecursionLimit(10, { env: {} })).toBe(50);
+	});
+
+	it("prefers WEB_SEARCH_RECURSION_LIMIT over the computed default", () => {
+		expect(resolveRecursionLimit(10, { env: { WEB_SEARCH_RECURSION_LIMIT: "80" } })).toBe(80);
+	});
+
+	it("ignores a non-numeric env value", () => {
+		expect(resolveRecursionLimit(10, { env: { WEB_SEARCH_RECURSION_LIMIT: "lots" } })).toBe(50);
+	});
+
+	it("ignores a non-positive env value", () => {
+		expect(resolveRecursionLimit(10, { env: { WEB_SEARCH_RECURSION_LIMIT: "0" } })).toBe(50);
+	});
+
+	it("prefers an explicit opt over the env", () => {
+		expect(
+			resolveRecursionLimit(10, { recursionLimit: 42, env: { WEB_SEARCH_RECURSION_LIMIT: "80" } }),
+		).toBe(42);
 	});
 });
 

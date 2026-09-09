@@ -1,10 +1,8 @@
 /**
  * Agentic answer loop (LangChain).
  *
- * Flow for `--use-ai`: understand the query (planner constrained to the
- * instance's real categories/engines from /config) → search via the core
- * (session persisted as usual) → summarize via a tool-calling agent that
- * reads the session, with footnote validation on the final text.
+ * Flow for `--use-ai`: decompose the query, search each planned query via
+ * the core, aggregate session overviews, then synthesize a cited answer.
  *
  * Surfaces import this module directly (`./agent.js`); it is not re-exported
  * from the package index to avoid an index <-> agent import cycle (agent
@@ -32,12 +30,16 @@ import { SearchError } from "../core/errors.js";
 /** Minimal session shape the summarizer needs (SearchResponse and SessionRecord both fit). */
 export type SessionLike = {
 	sessionId: string;
+	query: string;
 	results: SearchResult[];
 	suggestions: string[];
 };
 
-/** Steering plan the model returns for a query. Empty lists = no restriction. */
+/** Query decomposition and shared filters. Empty filter lists = no restriction. */
 export const SearchPlanSchema = z.object({
+	queries: z.array(z.string().trim().min(1)).min(1).max(5)
+		.refine((queries) => new Set(queries.map((query) => query.toLowerCase())).size === queries.length,
+			"search queries must be unique"),
 	categories: z.array(z.string()).default([]),
 	engines: z.array(z.string()).default([]),
 	language: z.string().optional(),
@@ -48,6 +50,29 @@ export type SearchPlan = z.infer<typeof SearchPlanSchema>;
 
 const DEFAULT_OVERVIEW_CAP = 10;
 const DEFAULT_MODEL_CALL_LIMIT = 10;
+const RECURSION_LIMIT_OFFSET = 10;
+const RECURSION_LIMIT_MULTIPLIER = 4;
+
+/**
+ * Resolve the LangChain graph recursion cap for the summarizer agent.
+ *
+ * Precedence: explicit `recursionLimit` opt > `WEB_SEARCH_RECURSION_LIMIT`
+ * env (positive integer) > `maxModelCalls * 4 + 10`. The multiplier keeps
+ * the recursion cap comfortably above the model-call cap so the
+ * `modelCallLimitMiddleware` thread limit fires first.
+ */
+export function resolveRecursionLimit(
+	maxModelCalls: number,
+	opts: { recursionLimit?: number; env?: Record<string, string | undefined> } = {},
+): number {
+	if (opts.recursionLimit !== undefined) return opts.recursionLimit;
+	const raw = (opts.env ?? process.env).WEB_SEARCH_RECURSION_LIMIT;
+	if (raw !== undefined && raw.trim() !== "") {
+		const parsed = Number(raw);
+		if (Number.isInteger(parsed) && parsed > 0) return parsed;
+	}
+	return maxModelCalls * RECURSION_LIMIT_MULTIPLIER + RECURSION_LIMIT_OFFSET;
+}
 
 /** Build a ChatOpenAI against the configured OpenAI-compatible endpoint.
  *
@@ -108,7 +133,7 @@ export function extractJson(text: string): unknown {
 }
 
 /**
- * Ask the model to steer the search: pick categories/engines from the
+ * Ask the model to decompose the query and pick categories/engines from the
  * instance's real lists (video intent -> video engines, encyclopedic ->
  * wikipedia, etc.). Returns the raw plan; call validatePlan() to enforce it.
  */
@@ -147,12 +172,14 @@ export function validatePlan(
 }
 
 /** Render the numbered session overview the summarizer reasons over. */
-export function buildSessionOverview(session: SessionLike, maxResults = DEFAULT_OVERVIEW_CAP): string {
+export function buildSessionOverview(session: SessionLike, maxResults = DEFAULT_OVERVIEW_CAP, resultOffset = 0): string {
 	const lines = [
-		`Session ${session.sessionId}, ${session.results.length} result(s):`,
+		`## Search session: ${session.sessionId}`,
+		`### Search query: ${JSON.stringify(session.query)}`,
+		`### Results (${session.results.length} total)`,
 	];
 	session.results.slice(0, maxResults).forEach((result, index) => {
-		const n = index + 1;
+		const n = resultOffset + index + 1;
 		const meta = [result.engines.join("+"), result.category, result.publishedDate]
 			.filter(Boolean)
 			.join(" · ");
@@ -215,6 +242,7 @@ const FOOTNOTE_RE = /\[\^(\d+)\]/g;
 export function validateFootnotes(summary: string, resultCount: number): string[] {
 	const errors: string[] = [];
 	const markers = [...summary.matchAll(FOOTNOTE_RE)].map((m) => Number(m[1]));
+	if (markers.length === 0 && resultCount === 0) return errors;
 	if (markers.length === 0 && resultCount > 0) {
 		errors.push("summary cites no results; every externally verifiable claim needs a [^n] citation");
 		return errors;
@@ -240,23 +268,35 @@ export function validateFootnotes(summary: string, resultCount: number): string[
 }
 
 /**
- * Summarize a persisted session for the original query via a tool-calling
- * agent. The agent sees the session overview inline and can pull full
- * per-result records through read_session_entry.
+ * Synthesize persisted sessions for the original query via a tool-calling
+ * agent. Overviews are grouped by session/query; global result numbers also
+ * address full per-result records through read_session_entry.
  */
 export async function summarizeSession(
 	model: ChatOpenAI,
-	session: SessionLike,
+	session: SessionLike | SessionLike[],
 	originalQuery: string,
-	opts: { maxResults?: number; maxModelCalls?: number; debug?: boolean | DebugLogger } = {},
+	opts: {
+		maxResults?: number;
+		maxModelCalls?: number;
+		recursionLimit?: number;
+		debug?: boolean | DebugLogger;
+	} = {},
 ): Promise<string> {
 	const maxResults = opts.maxResults ?? DEFAULT_OVERVIEW_CAP;
 	const maxModelCalls = opts.maxModelCalls ?? DEFAULT_MODEL_CALL_LIMIT;
 	const debug = toLogger(opts.debug);
-	const overview = buildSessionOverview(session, maxResults);
+	const sessions = Array.isArray(session) ? session : [session];
+	const results = sessions.flatMap((entry) => entry.results);
+	let resultOffset = 0;
+	const overview = sessions.map((entry) => {
+		const text = buildSessionOverview(entry, maxResults, resultOffset);
+		resultOffset += entry.results.length;
+		return text;
+	}).join("\n\n");
 	debug.log('agent', `summarize "${originalQuery}"`, {
-		sessionId: session.sessionId,
-		results: session.results.length,
+		sessionIds: sessions.map((entry) => entry.sessionId),
+		results: results.length,
 		maxResults,
 		maxModelCalls,
 	});
@@ -264,9 +304,9 @@ export async function summarizeSession(
 	const readEntry = tool(
 		({ resultNumber }: { resultNumber: number }) => {
 			debug.log('agent', `tool read_session_entry(${resultNumber})`);
-			const result = session.results[resultNumber - 1];
+			const result = results[resultNumber - 1];
 			if (!result) {
-				return `No result #${resultNumber}: the session has ${session.results.length} result(s).`;
+				return `No result #${resultNumber}: the sessions have ${results.length} result(s).`;
 			}
 			return JSON.stringify({ rank: resultNumber, ...result }, null, 2);
 		},
@@ -289,7 +329,7 @@ export async function summarizeSession(
 
 	const userContent = summarizerUserMessage({ originalQuery, overview });
 
-	const invokeOpts = { recursionLimit: maxModelCalls * 3 + 10 };
+	const invokeOpts = { recursionLimit: resolveRecursionLimit(maxModelCalls, { recursionLimit: opts.recursionLimit }) };
 	debug.log('agent', 'summarizer agent.invoke start', { recursionLimit: invokeOpts.recursionLimit });
 	const first = await agent.invoke({ messages: [{ role: "user", content: userContent }] }, invokeOpts);
 	const text = lastAiText(first.messages);
@@ -298,7 +338,7 @@ export async function summarizeSession(
 		toolCalls: countToolCalls(first.messages),
 		chars: text.length,
 	});
-	const errors = validateFootnotes(text, session.results.length);
+	const errors = validateFootnotes(text, results.length);
 	if (errors.length === 0) return text;
 	debug.log('agent', 'footnote validation failed, retrying once', { errors });
 
@@ -309,7 +349,7 @@ export async function summarizeSession(
 	);
 	const fixed = contentToText(fix.content);
 	debug.log('agent', 'footnote fix call done', { chars: fixed.length });
-	const remaining = validateFootnotes(fixed, session.results.length);
+	const remaining = validateFootnotes(fixed, results.length);
 	if (remaining.length > 0) {
 		throw new SearchError(`AI summary failed footnote validation: ${remaining.join("; ")}`);
 	}
@@ -319,6 +359,7 @@ export async function summarizeSession(
 export type AiAnswerOptions = {
 	/** Explicit search flags from the CLI; these win over the AI plan. */
 	overrides?: SearchOptions;
+	/** Number of top results included inline per search session (default 10). */
 	maxResults?: number;
 	/** Verbose stderr logging for the plan -> search -> summarize loop. */
 	debug?: boolean | DebugLogger;
@@ -326,14 +367,16 @@ export type AiAnswerOptions = {
 
 export type AiAnswer = {
 	query: string;
+	/** First search session, retained for existing JSON consumers. */
 	sessionId: string;
+	sessions: { sessionId: string; query: string }[];
 	plan: SearchPlan;
 	summary: string;
 	unresponsiveEngines: [string, string][];
 };
 
 /**
- * Full --use-ai flow: plan -> search (session persisted) -> summarize.
+ * Full --use-ai flow: decompose -> search each query -> aggregate -> synthesize.
  * Plan picks steer categories/engines/language/timeRange; explicit CLI
  * overrides always win over the plan.
  */
@@ -368,17 +411,23 @@ export async function answerQuery(query: string, aiOptions: AiAnswerOptions = {}
 		...aiOptions.overrides,
 		debug,
 	};
-	const response = await search(query, merged);
-	const summary = await summarizeSession(model, response, query, {
+	const responses = [];
+	for (const searchQuery of plan.queries) {
+		responses.push(await search(searchQuery, merged));
+	}
+	const summary = await summarizeSession(model, responses, query, {
 		maxResults: aiOptions.maxResults,
 		debug,
 	});
 
 	return {
 		query,
-		sessionId: response.sessionId,
+		sessionId: responses[0].sessionId,
+		sessions: responses.map((response) => ({ sessionId: response.sessionId, query: response.query })),
 		plan,
 		summary,
-		unresponsiveEngines: response.unresponsiveEngines,
+		unresponsiveEngines: responses.flatMap((response) => response.unresponsiveEngines)
+			.filter(([engine, reason], index, all) =>
+				all.findIndex(([otherEngine, otherReason]) => engine === otherEngine && reason === otherReason) === index),
 	};
 }

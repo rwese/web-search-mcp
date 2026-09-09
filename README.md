@@ -183,14 +183,18 @@ Sessions live under `$XDG_DATA_HOME/web-search/sessions/` (fallback
 
 ### AI answers
 
-A plain `web-search "<query>"` answers via the plan → search → summarize
-loop whenever the LLM is configured (model + API key): the planner picks
-categories/engines from your instance's live config, searches and saves the
-session as usual, then answers your question with footnote citations. The
-markdown output prints the `**Session:**` id plus a
-`Raw results: web-search --session <id>` hint so the raw hits stay
-reviewable; `--json` carries the full `sessionId` / `plan` / `summary`
-envelope.
+A plain `web-search "<query>"` answers via the plan → search → aggregate → synthesize
+loop whenever the LLM is configured (model + API key). The planner breaks the
+request into 1–5 focused search queries and picks shared categories/engines
+from your instance's live config. Each query runs in order and saves its own
+session. The top 10 results per session are aggregated into a Markdown prompt,
+under search-session and search-query headings, then synthesized into one
+answer with globally numbered footnote citations.
+
+The markdown output prints every `**Session:**` id and search query plus a
+`Raw results: web-search --session <id>` hint so the raw hits stay reviewable.
+`--json` carries `sessions` (query/id pairs), `plan` (including `queries`), and
+`summary`; `sessionId` remains the first search's id for existing consumers.
 
 Setup (needs an OpenAI-compatible endpoint in addition to SearXNG):
 
@@ -203,6 +207,7 @@ web-search "latest pi 5 news" --use-ai
 
 ```
 **Session:** 9be21cc4-latest-pi-5-news
+Search query: "latest pi 5 news"
 
 The Raspberry Pi 5 ... [^1] ... [^2]
 
@@ -242,6 +247,7 @@ entrypoints before startup; the core itself never loads dotenv.
 | `SEARXNG_URL`        | yes            | —         | SearXNG instance base URL; fails fast without it    |
 | `SEARXNG_TIMEOUT_MS` | no             | `10000`   | per-request timeout in ms                           |
 | `WEB_SEARCH_DEBUG`   | no             | `0`       | verbose stderr logging; `1` to enable               |
+| `WEB_SEARCH_RECURSION_LIMIT` | no       | `50`      | LangChain graph recursion cap for the `--use-ai` summarizer (default `maxModelCalls * 4 + 10`); raise if you hit "Recursion limit ... reached" |
 | `OPENAI_BASE_URL`    | for `--use-ai` | —         | OpenAI-compatible endpoint                          |
 | `OPENAI_MODEL`       | for `--use-ai` | —         | model name (e.g. `deepseek-v4-flash`)               |
 | `OPENAI_API_KEY`     | for `--use-ai` | —         | key; env wins, `openai.apiKey` in the XDG config file is the fallback (mode 0600, single line) |

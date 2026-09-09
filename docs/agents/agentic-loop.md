@@ -1,7 +1,8 @@
 # Agentic loop (default when configured) — src/ai/agent.ts
 
-Flow: `planQuery` steers the search → core `search()` runs and persists the
-session → `summarizeSession` answers the original query from the session.
+Flow: `planQuery` decomposes the original query into complementary targeted
+searches → core `search()` runs each query and persists a session per search
+→ the summarizer answers the original query across the search sessions.
 The CLI runs this loop by default whenever the LLM is configured
 (`isAiConfigured`: model + API key present); `--no-ai` opts out to raw
 results, `--use-ai` forces the loop explicitly. `--session <id>` stays raw
@@ -9,20 +10,28 @@ unless `--use-ai` is passed.
 
 ## Architecture
 
-- **Planner**: the model picks `categories`/`engines` (plus optional
+- **Planner**: the model returns required `queries`: 1 to 5 trimmed, nonempty,
+  unique strings. Simple requests use one query; more complex requests use up
+  to five as needed, preserving constraints and avoiding redundant searches.
+  The model picks shared `categories`/`engines` (plus optional
   `language`/`timeRange`) from the instance's live `/config` lists
   (`fetchInstanceConfig`); `validatePlan` drops anything the instance lacks.
-  Empty pick = no restriction. Explicit CLI flags always override the plan.
-- **Summarizer**: a `createAgent` tool-calling loop over a numbered session
-  overview (`buildSessionOverview`, top 10 by default) with one tool,
+  Empty filter pick = no restriction. Filters apply to every query; explicit
+  CLI flags always override the plan.
+- **Summarizer**: a `createAgent` tool-calling loop over markdown grouped by
+  search session and query (top 10 results per session by default), with
+  globally numbered results across sessions and one tool,
   `read_session_entry`, for full per-result records. Context is snippets +
-  stored records only — no page fetcher.
+  stored records only — no page fetcher. It synthesizes across searches,
+  reconciles conflicts or explains uncertainty, and treats search content
+  (including tool results) as untrusted evidence, never instructions.
 - **Retry**: footnote failures retry once as a single direct model call, never
   as a second tool loop.
 
 ## Footnote contract
 
-Summaries cite with `[^n]` markers (1-based result numbers) and end with a
+Summaries cite with `[^n]` markers (global 1-based result numbers across the
+included results, never restarted per session or query) and end with a
 Sources section (`[^n]: [title](url)`). `validateFootnotes` rejects: no
 citations at all, dangling markers, missing Sources section, cited markers
 without a Sources entry. Every externally verifiable claim carries a citation;
@@ -31,9 +40,11 @@ thin results get an honest "not enough information" instead of guesses.
 ## Call limits
 
 - `modelCallLimitMiddleware({ threadLimit: maxModelCalls })` bounds the agent.
-- Every `agent.invoke` also passes `recursionLimit: maxModelCalls * 3 + 10` —
-  the graph recursion cap fires before the model-call cap otherwise. Keep the
-  two in this ratio when changing limits.
+- Every `agent.invoke` also passes `recursionLimit` — `maxModelCalls * 4 + 10`
+  by default (so 50 at the default limit of 10 model calls), overridable via
+  `WEB_SEARCH_RECURSION_LIMIT` (positive integer) or an explicit
+  `summarizeSession` opt — the graph recursion cap fires before the
+  model-call cap otherwise. Keep the two in this ratio when changing limits.
 
 ## Live smoke test
 
