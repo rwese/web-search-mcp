@@ -62,7 +62,8 @@ Bare bin name below stands for that `npx … web-search` prefix:
 web-search "<query>" [flags]          search (AI answer when the LLM is configured, raw with --no-ai)
 web-search --session <id> [--json] [--use-ai]  re-read a saved session (raw unless --use-ai)
 web-search --doctor [--json]          validate your setup
-web-search --help                     show help
+web-search --help                     show help (includes the version)
+web-search --version                  print the version and exit
 ```
 
 | Flag                | Meaning                                                        |
@@ -79,7 +80,8 @@ web-search --help                     show help
 | `--debug`           | verbose logging to stderr (never pollutes stdout/JSON)         |
 | `--doctor`          | validate setup (takes no query, no other flags except `--json`)|
 | `--json`            | full structured output (default is readable markdown)          |
-| `--help`            | show help                                                      |
+| `--help`            | show help (includes the version)                               |
+| `--version`         | print the version and exit                                     |
 
 Exit codes: `0` success (even with zero results), `1` runtime error,
 `2` usage error (e.g. query combined with `--session`).

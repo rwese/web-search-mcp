@@ -5,8 +5,8 @@
  * Locked by wayfinder ticket #8 (CLI surface):
  *   - bare `web-search "<query>"` = search; `--session <id>` = retrieve a
  *     persisted session (mutually exclusive with a query).
- *   - flags: --categories/--engines (csv), --language, --time-range
- *     (day|month|year), --safesearch (0|1|2), --page, --json, --help.
+  *   - flags: --categories/--engines (csv), --language, --time-range
+  *     (day|month|year), --safesearch (0|1|2), --page, --json, --help, --version.
  *   - markdown default shows top 10; --json emits the full SearchResponse.
  *   - AI is the default for a query when the LLM is configured (model +
  *     API key); --no-ai forces raw results, --use-ai forces the AI answer.
@@ -23,6 +23,7 @@ import type { AiAnswer } from "../../ai/agent.js";
 import { answerQuery, isAiConfigured, modelFromConfig, summarizeSession } from "../../ai/agent.js";
 import { renderDoctorReport, runDoctor } from "../../diagnostics/doctor.js";
 import { parseArgs, USAGE, type ParsedArgs } from "./args.js";
+import { version } from "../../version.js";
 
 loadDotenv({ path: `${process.cwd()}/.env` });
 
@@ -49,6 +50,11 @@ async function run(): Promise<number> {
 
 	if (parsed.help) {
 		printUsage();
+		return 0;
+	}
+
+	if (parsed.version) {
+		process.stdout.write(`web-search ${version}\n`);
 		return 0;
 	}
 

@@ -1,12 +1,14 @@
 import type { SearchOptions } from "../../core/types.js";
+import { version } from "../../version.js";
 
-export const USAGE = `web-search — SearXNG-backed web search
+export const USAGE = `web-search ${version} — SearXNG-backed web search
 
 Usage:
   web-search "<query>" [flags]
   web-search --session <id> [--json]
   web-search --doctor [--json]
   web-search --help
+  web-search --version
 
 Flags:
   --categories <csv>   restrict to categories (e.g. general,news)
@@ -23,11 +25,13 @@ Flags:
   --doctor             validate setup: config, SearXNG, engines, probe search, LLM
   --json               structured output (default: markdown)
   --help               show this help
+  --version            print the version and exit
 
 Exit codes: 0 ok (even empty results; for --doctor: all checks passed), 1 runtime error (or --doctor found issues), 2 usage.`;
 
 export type ParsedArgs = {
 	help?: boolean;
+	version?: boolean;
 	query?: string;
 	sessionId?: string;
 	json?: boolean;
@@ -68,6 +72,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	const options: SearchOptions = {};
 	const positionals: string[] = [];
 	let help = false;
+	let showVersion = false;
 	let json = false;
 	let useAi = false;
 	let noAi = false;
@@ -79,6 +84,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		const arg = argv[i];
 		if (arg === "--help") {
 			help = true;
+			continue;
+		}
+		if (arg === "--version") {
+			showVersion = true;
 			continue;
 		}
 		if (arg === "--json") {
@@ -153,6 +162,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	}
 
 	const query = positionals.join(" ").trim() || undefined;
+	if (showVersion && (query || sessionId || doctor || useAi || noAi || Object.keys(options).length > 0)) {
+		fail("--version takes no query, --session, --doctor, --use-ai, --no-ai, or search flags");
+	}
 	if (doctor && (query || sessionId || useAi || noAi || Object.keys(options).length > 0)) {
 		fail("--doctor takes no query, --session, --use-ai, --no-ai, or search flags");
 	}
@@ -162,9 +174,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	if (query && sessionId) {
 		fail("pass either a query or --session <id>, not both");
 	}
-	if (!help && !doctor && !query && !sessionId) {
+	if (!help && !showVersion && !doctor && !query && !sessionId) {
 		fail("missing query");
 	}
 
-	return { help, query, sessionId, json, useAi, noAi, debug, doctor, options };
+	return { help, version: showVersion, query, sessionId, json, useAi, noAi, debug, doctor, options };
 }
