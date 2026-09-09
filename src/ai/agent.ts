@@ -235,12 +235,44 @@ export function countToolCalls(messages: readonly BaseMessage[]): number {
 const FOOTNOTE_RE = /\[\^(\d+)\]/g;
 
 /**
+ * Prefix of the synthetic AI message langchain's `modelCallLimitMiddleware`
+ * appends when the model-call budget is exhausted with `exitBehavior: "end"`.
+ * It is termination metadata, not synthesized content, and must never be
+ * treated as an answer or a citation-repair draft.
+ */
+const MODEL_CALL_LIMIT_PREFIX = "Model call limits exceeded";
+
+/** True when the text is the middleware's limit-termination message. */
+export function isModelCallLimitTermination(text: string): boolean {
+	return text.trim().startsWith(MODEL_CALL_LIMIT_PREFIX);
+}
+
+/**
+ * Deterministic reply for zero-evidence synthesis. With no results there is
+ * nothing to cite and nothing to synthesize, so the summarizer answers with
+ * this instead of calling the model — model output can never be empty or
+ * carry unsupported claims on this path.
+ */
+export function zeroResultSummary(originalQuery: string): string {
+	return `No search results were found for "${originalQuery}". ` +
+		`I don't have enough information to answer. Try rephrasing the query or broadening the search.`;
+}
+
+/**
  * Validate [^n] footnotes against the session: no dangling markers, no
  * uncited summaries, and a Sources section backing every marker.
  * Returns a list of violations (empty = valid).
+ *
+ * Intentional zero-result exception: a nonempty summary with no markers is
+ * valid when there are no results — that is the honest insufficient-evidence
+ * reply (see `zeroResultSummary`). Empty output is never valid.
  */
 export function validateFootnotes(summary: string, resultCount: number): string[] {
 	const errors: string[] = [];
+	if (summary.trim() === "") {
+		errors.push("summary is empty; return an honest insufficient-evidence reply instead");
+		return errors;
+	}
 	const markers = [...summary.matchAll(FOOTNOTE_RE)].map((m) => Number(m[1]));
 	if (markers.length === 0 && resultCount === 0) return errors;
 	if (markers.length === 0 && resultCount > 0) {
@@ -288,6 +320,15 @@ export async function summarizeSession(
 	const debug = toLogger(opts.debug);
 	const sessions = Array.isArray(session) ? session : [session];
 	const results = sessions.flatMap((entry) => entry.results);
+	if (results.length === 0) {
+		debug.log('agent', `summarize "${originalQuery}"`, {
+			sessionIds: sessions.map((entry) => entry.sessionId),
+			results: 0,
+			maxResults,
+			maxModelCalls,
+		});
+		return zeroResultSummary(originalQuery);
+	}
 	let resultOffset = 0;
 	const overview = sessions.map((entry) => {
 		const text = buildSessionOverview(entry, maxResults, resultOffset);
@@ -338,6 +379,12 @@ export async function summarizeSession(
 		toolCalls: countToolCalls(first.messages),
 		chars: text.length,
 	});
+	if (isModelCallLimitTermination(text)) {
+		throw new SearchError(
+			`AI summary hit the model-call limit (${maxModelCalls} call(s)) before producing an answer. ` +
+			`Increase the budget or simplify the query.`,
+		);
+	}
 	const errors = validateFootnotes(text, results.length);
 	if (errors.length === 0) return text;
 	debug.log('agent', 'footnote validation failed, retrying once', { errors });

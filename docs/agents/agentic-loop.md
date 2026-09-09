@@ -32,10 +32,16 @@ unless `--use-ai` is passed.
 
 Summaries cite with `[^n]` markers (global 1-based result numbers across the
 included results, never restarted per session or query) and end with a
-Sources section (`[^n]: [title](url)`). `validateFootnotes` rejects: no
-citations at all, dangling markers, missing Sources section, cited markers
-without a Sources entry. Every externally verifiable claim carries a citation;
-thin results get an honest "not enough information" instead of guesses.
+Sources section (`[^n]: [title](url)`). `validateFootnotes` rejects: empty
+output, no citations at all, dangling markers, missing Sources section,
+cited markers without a Sources entry. Every externally verifiable claim
+carries a citation.
+
+Intentional zero-result exception: when every search session is empty there
+is nothing to cite, so `summarizeSession` short-circuits to a deterministic
+honest insufficient-evidence reply (`zeroResultSummary`) without calling the
+model. A nonempty uncited summary with zero results therefore also passes
+validation — that is the abstention path, not a citation failure.
 
 ## Call limits
 
@@ -45,6 +51,12 @@ thin results get an honest "not enough information" instead of guesses.
   `WEB_SEARCH_RECURSION_LIMIT` (positive integer) or an explicit
   `summarizeSession` opt — the graph recursion cap fires before the
   model-call cap otherwise. Keep the two in this ratio when changing limits.
+- With `exitBehavior: "end"` the middleware ends the run with a synthetic
+  `Model call limits exceeded: ...` AI message. `summarizeSession` detects
+  this (`isModelCallLimitTermination`) and throws a `SearchError` instead of
+  treating it as an answer or a citation-repair draft — so the CLI reports
+  the exhaustion on stderr with a nonzero exit, never as a successful
+  answer.
 
 ## Live smoke test
 

@@ -3,11 +3,13 @@ import {
 	buildSessionOverview,
 	extractJson,
 	isAiConfigured,
+	isModelCallLimitTermination,
 	planQuery,
 	resolveRecursionLimit,
 	validateFootnotes,
 	validatePlan,
 	modelFromConfig,
+	zeroResultSummary,
 } from "../../src/ai/agent.js";
 import type { Config } from "../../src/infra/config.js";
 import type { SessionLike } from "../../src/ai/agent.js";
@@ -163,6 +165,49 @@ describe("validateFootnotes", () => {
 		expect(validateFootnotes(bold, 2)).toEqual([]);
 		const bare = good.replace("## Sources", "Sources");
 		expect(validateFootnotes(bare, 2)).toEqual([]);
+	});
+
+	it("rejects empty output even with zero results", () => {
+		expect(validateFootnotes("", 0)).toEqual([
+			"summary is empty; return an honest insufficient-evidence reply instead",
+		]);
+		expect(validateFootnotes("   \n  ", 0)).toEqual([
+			"summary is empty; return an honest insufficient-evidence reply instead",
+		]);
+	});
+
+	it("rejects empty output with nonzero results", () => {
+		const errors = validateFootnotes("", 2);
+		expect(errors.some((e) => e.includes("summary is empty"))).toBe(true);
+	});
+
+	it("accepts a nonempty uncited abstention with zero results", () => {
+		expect(validateFootnotes("Not enough information to answer.", 0)).toEqual([]);
+	});
+});
+
+describe("isModelCallLimitTermination", () => {
+	it("detects the middleware's synthetic termination message", () => {
+		expect(
+			isModelCallLimitTermination(
+				"Model call limits exceeded: thread level call limit reached with 10 model calls.",
+			),
+		).toBe(true);
+	});
+
+	it("ignores genuine synthesis output", () => {
+		expect(isModelCallLimitTermination("Kubernetes is an orchestrator.[^1]")).toBe(false);
+		expect(isModelCallLimitTermination("")).toBe(false);
+	});
+});
+
+describe("zeroResultSummary", () => {
+	it("returns a nonempty insufficient-evidence reply naming the query", () => {
+		const text = zeroResultSummary("quantum teapots");
+		expect(text.trim().length).toBeGreaterThan(0);
+		expect(text).toContain("quantum teapots");
+		expect(text.toLowerCase()).toContain("enough information");
+		expect(validateFootnotes(text, 0)).toEqual([]);
 	});
 });
 

@@ -206,12 +206,50 @@ describe("summarizeSession integration with mocked LangChain", () => {
 		expect(mocks.agentInvoke).toHaveBeenCalledTimes(1);
 	});
 
-	it("accepts an uncited zero-result summary without a repair call", async () => {
+	it("returns a deterministic abstention for zero results without invoking the agent", async () => {
 		const empty = { ...session("empty", originalQuery), results: [] };
-		mocks.agentInvoke.mockResolvedValue(agentReply("Not enough information to answer."));
-		await expect(summarizeSession(new ChatOpenAI(), empty, originalQuery)).resolves.toBe("Not enough information to answer.");
-		expect(mocks.agentInvoke.mock.calls[0][0].messages[0].content).toContain("### Results (0 total)");
+		const text = await summarizeSession(new ChatOpenAI(), empty, originalQuery);
+		expect(text).toContain(originalQuery);
+		expect(text.toLowerCase()).toContain("enough information");
+		expect(mocks.createAgent).not.toHaveBeenCalled();
+		expect(mocks.agentInvoke).not.toHaveBeenCalled();
+		expect(mocks.modelInvoke).not.toHaveBeenCalled();
+	});
+
+	it("returns the same abstention for multiple empty sessions without invoking the agent", async () => {
+		const empties = [session("a", "first query"), session("b", "second query")].map((entry) => ({
+			...entry,
+			results: [],
+		}));
+		const text = await summarizeSession(new ChatOpenAI(), empties, originalQuery);
+		expect(text).toContain(originalQuery);
+		expect(text.toLowerCase()).toContain("enough information");
+		expect(mocks.createAgent).not.toHaveBeenCalled();
+		expect(mocks.agentInvoke).not.toHaveBeenCalled();
+		expect(mocks.modelInvoke).not.toHaveBeenCalled();
+	});
+
+	it("throws without a repair call when the model-call limit terminates synthesis (nonzero results)", async () => {
+		const sessions = [session("alpha", plan.queries[0]), session("beta", plan.queries[1])];
+		mocks.agentInvoke.mockResolvedValue(
+			agentReply("Model call limits exceeded: thread level call limit reached with 10 model calls."),
+		);
+		await expect(summarizeSession(new ChatOpenAI(), sessions, originalQuery)).rejects.toThrow(
+			"model-call limit",
+		);
 		expect(mocks.agentInvoke).toHaveBeenCalledTimes(1);
+		expect(mocks.modelInvoke).not.toHaveBeenCalled();
+	});
+
+	it("never lets a limit-termination reply surface with zero results (abstention short-circuits before the agent)", async () => {
+		const empty = { ...session("empty", originalQuery), results: [] };
+		mocks.agentInvoke.mockResolvedValue(
+			agentReply("Model call limits exceeded: thread level call limit reached with 10 model calls."),
+		);
+		const text = await summarizeSession(new ChatOpenAI(), empty, originalQuery);
+		expect(text.toLowerCase()).toContain("enough information");
+		expect(text).not.toContain("Model call limits exceeded");
+		expect(mocks.agentInvoke).not.toHaveBeenCalled();
 		expect(mocks.modelInvoke).not.toHaveBeenCalled();
 	});
 });
