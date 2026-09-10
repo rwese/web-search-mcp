@@ -1,8 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { renderMarkdown, search } from "../../index.js";
+import { DEFAULT_MAX_RESULTS } from "../../infra/config.js";
 
-export const MAX_RESULTS_DEFAULT = 10;
+export const MAX_RESULTS_DEFAULT = DEFAULT_MAX_RESULTS;
 export const MAX_RESULTS_LIMIT = 50;
 
 /** Register the `search` tool — the only tool in the first build-out. */

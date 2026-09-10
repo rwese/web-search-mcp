@@ -127,6 +127,87 @@ describe("renderMarkdown", () => {
         expect(md).not.toContain("11. [R10]");
     });
 
+    it("adds a pagination footer with a next hint when results exceed the page size", () => {
+        const many: SearchResponse = {
+            ...response,
+            results: Array.from({ length: 20 }, (_, i) => ({
+                title: `R${i}`,
+                url: `https://example.com/${i}`,
+                snippet: "",
+                publishedDate: null,
+                score: null,
+                engines: [],
+                category: null,
+            })),
+        };
+        const md = renderMarkdown(many, 10);
+        expect(md).toContain(
+            "Showing 10 of 20 page 1, to get further results: web-search --session 3f9a2c7e-what-is-kubernetes --page 2",
+        );
+    });
+
+    it("renders page 2 with global numbering and no further-results hint on the last page", () => {
+        const many: SearchResponse = {
+            ...response,
+            results: Array.from({ length: 20 }, (_, i) => ({
+                title: `R${i}`,
+                url: `https://example.com/${i}`,
+                snippet: "",
+                publishedDate: null,
+                score: null,
+                engines: [],
+                category: null,
+            })),
+        };
+        const md = renderMarkdown(many, 10, 2);
+        expect(md).toContain("11. [R10]");
+        expect(md).toContain("20. [R19]");
+        expect(md).toContain("Showing 10 of 20 page 2");
+        expect(md).not.toContain("to get further results");
+    });
+
+    it("shows the partial count on a short last page", () => {
+        const many: SearchResponse = {
+            ...response,
+            results: Array.from({ length: 25 }, (_, i) => ({
+                title: `R${i}`,
+                url: `https://example.com/${i}`,
+                snippet: "",
+                publishedDate: null,
+                score: null,
+                engines: [],
+                category: null,
+            })),
+        };
+        const md = renderMarkdown(many, 10, 3);
+        expect(md).toContain("Showing 5 of 25 page 3");
+        expect(md).not.toContain("to get further results");
+    });
+
+    it("clamps an out-of-range page to the last page", () => {
+        const many: SearchResponse = {
+            ...response,
+            results: Array.from({ length: 20 }, (_, i) => ({
+                title: `R${i}`,
+                url: `https://example.com/${i}`,
+                snippet: "",
+                publishedDate: null,
+                score: null,
+                engines: [],
+                category: null,
+            })),
+        };
+        const md = renderMarkdown(many, 10, 99);
+        expect(md).toContain("Showing 10 of 20 page 2");
+        expect(md).toContain("11. [R10]");
+    });
+
+    it("omits the footer when all results fit on one page", () => {
+        const md = renderMarkdown(response, 10);
+        expect(md).not.toContain("Showing ");
+        expect(md).not.toContain("Showing top");
+    });
+
     it("renders an empty-result message", () => {
         const empty: SearchResponse = { ...response, results: [] };
         expect(renderMarkdown(empty)).toContain("No results found.");

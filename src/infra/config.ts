@@ -23,6 +23,18 @@ export type Config = {
   storeDir: string;
   /** Verbose stderr logging. Set by WEB_SEARCH_DEBUG (env wins), else the config file. */
   debug: boolean;
+  /**
+   * Display cap: how many results render in markdown overviews and MCP/pi
+   * summaries. Set by WEB_SEARCH_MAX_RESULTS (env wins), else the config
+   * file, else 15. Never truncates the persisted session.
+   */
+  maxResults: number;
+  /**
+   * Budget for the summarizer agent's follow-up `search` tool calls per
+   * summarize run. Set by WEB_SEARCH_MAX_AGENT_SEARCHES (env wins), else
+   * the config file, else 10.
+   */
+  maxAgentSearches: number;
   openai?: {
     baseUrl?: string;
     model?: string;
@@ -36,6 +48,8 @@ export type ConfigFile = {
   timeoutMs?: number;
   storeDir?: string;
   debug?: boolean;
+  maxResults?: number;
+  maxAgentSearches?: number;
   openai?: {
     baseUrl?: string;
     model?: string;
@@ -44,6 +58,14 @@ export type ConfigFile = {
 };
 
 export const DEFAULT_TIMEOUT_MS = 10000;
+export const DEFAULT_MAX_RESULTS = 15;
+export const DEFAULT_MAX_AGENT_SEARCHES = 10;
+
+function positiveInt(raw: string | number | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const parsed = typeof raw === "number" ? raw : Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
 
 function xdgConfigPath(): string {
   const base = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
@@ -88,6 +110,15 @@ export async function loadConfig(): Promise<Config> {
 
   const envDebug = resolveEnvDebug();
 
+  const maxResults =
+    positiveInt(process.env.WEB_SEARCH_MAX_RESULTS) ??
+    positiveInt(file.maxResults) ??
+    DEFAULT_MAX_RESULTS;
+  const maxAgentSearches =
+    positiveInt(process.env.WEB_SEARCH_MAX_AGENT_SEARCHES) ??
+    positiveInt(file.maxAgentSearches) ??
+    DEFAULT_MAX_AGENT_SEARCHES;
+
   const openaiBaseUrl = process.env.OPENAI_BASE_URL || file.openai?.baseUrl;
   const openaiModel = process.env.OPENAI_MODEL || file.openai?.model;
   const openaiApiKey = process.env.OPENAI_API_KEY || file.openai?.apiKey;
@@ -97,6 +128,8 @@ export async function loadConfig(): Promise<Config> {
     timeoutMs,
     storeDir: file.storeDir || defaultStoreDir(),
     debug: envDebug ?? file.debug ?? false,
+    maxResults,
+    maxAgentSearches,
     openai:
       file.openai || openaiBaseUrl || openaiModel || openaiApiKey
         ? {

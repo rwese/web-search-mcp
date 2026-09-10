@@ -1,5 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { renderMarkdown, search } from "../../index.js";
+import { DEFAULT_MAX_RESULTS } from "../../infra/config.js";
 
 export const SearchParamsSchema = Type.Object({
 	query: Type.String({ description: "Web search query" }),
@@ -22,7 +23,7 @@ export const SearchParamsSchema = Type.Object({
 	),
 	pageNo: Type.Optional(Type.Integer({ description: "Result page number (1-based)" })),
 	maxResults: Type.Optional(
-		Type.Integer({ description: "Maximum number of results to show (default 10)" }),
+		Type.Integer({ description: `Maximum number of results to show (default ${DEFAULT_MAX_RESULTS})` }),
 	),
 });
 

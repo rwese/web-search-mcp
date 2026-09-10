@@ -43,6 +43,12 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
 - **Search plan** — the decomposition of a user's request into focused,
   complementary search queries, with shared category, engine, language, and
   time-range restrictions. An empty category or engine selection means no restriction.
+- **Follow-up search** — a search the summarizer agent runs through its
+  `search` tool during an **AI answer**, budgeted per answer
+  (`maxAgentSearches`, default 10). Each follow-up persists its own **search
+  session**, and its results extend the answer's globally numbered overview.
+  Exceeding the budget fails the run with **search volume exhausted**
+  (`SearchVolumeExhausted`, HTTP 429).
 - **AI answer** — the result of the agentic loop (`answerQuery`): the search
   plan, the search sessions and their queries, and a footnote-cited synthesis of the
   original query. The CLI default for a query when the LLM is configured
@@ -61,6 +67,11 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
   `DebugLogger`, `Config.debug`, `WEB_SEARCH_DEBUG`, a `DEBUG` list containing
   `web-search`, or the CLI `--debug` flag. Never touches stdout, so `--json`
   output stays machine-readable.
+- **Progress events** — typed `ProgressEvent`s (`planning`, `plan-decided`,
+  per-query `searching`/`searched`, `synthesizing`, `done`) emitted via an
+  `onProgress` callback on `answerQuery`/`summarizeSession`. The CLI renders
+  one line per event to stderr only when stderr is a TTY and output is
+  human-readable (silent when piped or under `--json`).
 
 ## Decisions
 
@@ -79,3 +90,6 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
 - `--use-ai` runs a LangChain plan → search → summarize loop; explicit CLI
   flags always override the AI plan; footnote failures retry once as a direct
   call, never a second tool loop.
+- Markdown summaries and session overviews cap at 15 results by default
+  (`maxResults`/`WEB_SEARCH_MAX_RESULTS`) — display-only, the persisted
+  session keeps the full result set.

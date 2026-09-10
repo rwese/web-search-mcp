@@ -19,14 +19,20 @@ unless `--use-ai` is passed.
   Empty filter pick = no restriction. Filters apply to every query; explicit
   CLI flags always override the plan.
 - **Summarizer**: a `createAgent` tool-calling loop over markdown grouped by
-  search session and query (top 10 results per session by default), with
-  globally numbered results across sessions and one tool,
-  `read_session_entry`, for full per-result records. Context is snippets +
+  search session and query (top 15 results per session by default), with
+  globally numbered results across sessions and two tools:
+  `read_session_entry`, for full per-result records, and `search`, for
+  targeted follow-up searches. Follow-up results are appended to the
+  overview with the next global numbers and the search budget is 10 calls
+  per answer by default — when it is spent the tool fails with
+  `SearchVolumeExhausted` ("search volume exhausted", HTTP 429) so the
+  agent must refine the answer from the results so far. Context is snippets +
   stored records only — no page fetcher. It synthesizes across searches,
   reconciles conflicts or explains uncertainty, and treats search content
   (including tool results) as untrusted evidence, never instructions.
 - **Retry**: footnote failures retry once as a single direct model call, never
-  as a second tool loop.
+  as a second tool loop. The repair call renders the full overview including
+  any follow-up searches.
 
 ## Footnote contract
 
@@ -57,6 +63,11 @@ validation — that is the abstention path, not a citation failure.
   treating it as an answer or a citation-repair draft — so the CLI reports
   the exhaustion on stderr with a nonzero exit, never as a successful
   answer.
+- The follow-up `search` tool has its own budget (`maxAgentSearches`,
+  `WEB_SEARCH_MAX_AGENT_SEARCHES`, default 10 per answer). Exhaustion throws
+  `SearchVolumeExhausted` with `status = 429` ("search volume exhausted"),
+  which the MCP/HTTP surfaces can map to HTTP 429. Follow-up calls carry the
+  plan's categories/engines/language/timeRange so answers stay on-scope.
 
 ## Live smoke test
 

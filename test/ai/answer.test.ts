@@ -3,6 +3,11 @@ import { ChatOpenAI } from "@langchain/openai";
 import { answerQuery, summarizeSession } from "../../src/ai/agent.js";
 import type { SearchResponse } from "../../src/core/types.js";
 
+type MockTool = {
+	name: string;
+	invoke: (args: Record<string, unknown>) => unknown | Promise<unknown>;
+};
+
 const mocks = vi.hoisted(() => ({
 	loadConfig: vi.fn(),
 	openaiApiKey: vi.fn(),
@@ -20,6 +25,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../src/infra/config.js", () => ({
 	loadConfig: mocks.loadConfig,
 	openaiApiKey: mocks.openaiApiKey,
+	DEFAULT_MAX_RESULTS: 15,
+	DEFAULT_MAX_AGENT_SEARCHES: 10,
 }));
 vi.mock("../../src/infra/searxng.js", () => ({
 	fetchInstanceConfig: mocks.fetchInstanceConfig,
@@ -176,15 +183,16 @@ describe("summarizeSession integration with mocked LangChain", () => {
 	it("exposes full records by global number, including entries outside each overview cap", async () => {
 		const sessions = [session("alpha", plan.queries[0]), session("beta", plan.queries[1])];
 		mocks.agentInvoke.mockImplementation(async () => {
-			const { tools } = mocks.createAgent.mock.calls[0][0];
-			expect(tools).toHaveLength(1);
-			expect(tools[0].name).toBe("read_session_entry");
+			const { tools } = mocks.createAgent.mock.calls[0][0] as { tools: MockTool[] };
+			const readEntry = tools.find((tool) => tool.name === "read_session_entry")!;
+			expect(tools).toHaveLength(2);
+			expect(tools.map((tool) => tool.name)).toEqual(["read_session_entry", "search"]);
 			for (const resultNumber of [3, 4, 6]) {
-				expect(JSON.parse(await tools[0].invoke({ resultNumber }))).toEqual({
+				expect(JSON.parse((await readEntry.invoke({ resultNumber })) as string)).toEqual({
 					rank: resultNumber, ...sessions.flatMap((entry) => entry.results)[resultNumber - 1],
 				});
 			}
-			expect(await tools[0].invoke({ resultNumber: 7 })).toBe("No result #7: the sessions have 6 result(s).");
+			expect((await readEntry.invoke({ resultNumber: 7 })) as string).toBe("No result #7: the sessions have 6 result(s).");
 			return agentReply(summary);
 		});
 		await expect(summarizeSession(new ChatOpenAI(), sessions, originalQuery, { maxResults: 2 })).resolves.toBe(summary);
@@ -204,6 +212,65 @@ describe("summarizeSession integration with mocked LangChain", () => {
 		expect(retry).toContain("Draft:\nAn uncited draft.");
 		expect(mocks.createAgent).toHaveBeenCalledTimes(1);
 		expect(mocks.agentInvoke).toHaveBeenCalledTimes(1);
+	});
+
+	it("runs follow-up searches via the search tool, appending results with global numbers", async () => {
+		const sessions = [session("alpha", plan.queries[0])];
+		const followUp = session("gamma", "follow-up query");
+		mocks.search.mockImplementation(async (query: string) => (query === "follow-up query" ? followUp : sessions[0]));
+		const followUpSessions: SearchResponse[] = [];
+		mocks.agentInvoke.mockImplementation(async () => {
+			const { tools } = mocks.createAgent.mock.calls[0][0] as { tools: MockTool[] };
+			const searchTool = tools.find((tool) => tool.name === "search")!;
+			const text = (await searchTool.invoke({ query: "follow-up query" })) as string;
+			expect(text).toContain("New session session-gamma (3 result(s)); global numbers 4..6.");
+			expect(text).toContain("## Search session: session-gamma");
+			expect(text).toContain("4. gamma title 1");
+			return agentReply("Answer.[^4]\n\n## Sources\n[^4]: [gamma title 1](https://example.test/gamma/1)");
+		});
+		await expect(
+			summarizeSession(new ChatOpenAI(), sessions, originalQuery, { maxResults: 2, followUpSessions }),
+		).resolves.toContain("[^4]");
+		expect(mocks.search).toHaveBeenCalledWith("follow-up query", expect.objectContaining({}));
+		expect(followUpSessions).toEqual([followUp]);
+		expect(mocks.agentInvoke).toHaveBeenCalledTimes(1);
+	});
+
+	it("throws SearchVolumeExhausted (status 429) when the follow-up budget is spent", async () => {
+		const sessions = [session("alpha", plan.queries[0])];
+		const followUp = session("gamma", "follow-up query");
+		mocks.search.mockResolvedValue(followUp);
+		mocks.agentInvoke.mockImplementation(async () => {
+			const { tools } = mocks.createAgent.mock.calls[0][0] as { tools: MockTool[] };
+			const searchTool = tools.find((tool) => tool.name === "search")!;
+			await searchTool.invoke({ query: "one" });
+			await searchTool.invoke({ query: "two" });
+			await expect(searchTool.invoke({ query: "three" })).rejects.toMatchObject({
+				name: "SearchVolumeExhausted",
+				status: 429,
+				message: expect.stringContaining("search volume exhausted"),
+			});
+			return agentReply(summary);
+		});
+		await expect(
+			summarizeSession(new ChatOpenAI(), sessions, originalQuery, { maxAgentSearches: 2 }),
+		).resolves.toBe(summary);
+		expect(mocks.search).toHaveBeenCalledTimes(2);
+	});
+
+	it("propagates the base search filters to follow-up searches", async () => {
+		const sessions = [session("alpha", plan.queries[0])];
+		const followUp = session("gamma", "follow-up query");
+		mocks.search.mockResolvedValue(followUp);
+		mocks.agentInvoke.mockImplementation(async () => {
+			const { tools } = mocks.createAgent.mock.calls[0][0] as { tools: MockTool[] };
+			const searchTool = tools.find((tool) => tool.name === "search")!;
+			await searchTool.invoke({ query: "follow-up query" });
+			return agentReply(summary);
+		});
+		const searchOptions = { categories: ["news"], engines: ["bing"], language: "de" };
+		await summarizeSession(new ChatOpenAI(), sessions, originalQuery, { searchOptions });
+		expect(mocks.search).toHaveBeenCalledWith("follow-up query", expect.objectContaining(searchOptions));
 	});
 
 	it("returns a deterministic abstention for zero results without invoking the agent", async () => {

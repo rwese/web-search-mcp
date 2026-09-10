@@ -16,7 +16,7 @@ Flags:
   --language <code>    e.g. en, de
   --time-range <x>     day | month | year
   --safesearch <0|1|2> 0 off, 1 moderate, 2 strict
-  --page <n>           result page number
+  --page <n>           result page (search: next SearXNG page; --session: page of stored results)
   --session <id>       show a persisted search session instead of searching
   --use-ai             answer via the LangChain agentic loop (plan -> search -> summarize);
                        the default when the LLM is configured (see README)

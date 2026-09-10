@@ -52,6 +52,7 @@ describe("summarizer prompts", () => {
 				"- Cite each externally verifiable claim with a footnote marker [^n], where n is the global 1-based result number in the provided overview. Never restart numbering for a session or query.",
 				'- End with a "Sources" section listing every cited result as `[^n]: [title](url)`.',
 				"- Use the read_session_entry tool to inspect a full result record whenever a snippet is not enough.",
+				"- Use the search tool sparingly for targeted follow-up searches when the overview lacks evidence; exceeding the search budget fails the answer with search volume exhausted (HTTP 429).",
 				"- If the results do not contain enough information to answer, say so plainly instead of guessing.",
 			].join("\n"),
 		);

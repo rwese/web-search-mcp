@@ -7,7 +7,9 @@
  *     persisted session (mutually exclusive with a query).
   *   - flags: --categories/--engines (csv), --language, --time-range
   *     (day|month|year), --safesearch (0|1|2), --page, --json, --help, --version.
- *   - markdown default shows top 10; --json emits the full SearchResponse.
+  *   - markdown default shows 15 per page; --page pages stored results on
+  *     --session (and asks SearXNG for the next page on a live search);
+  *     --json emits the full SearchResponse.
  *   - AI is the default for a query when the LLM is configured (model +
  *     API key); --no-ai forces raw results, --use-ai forces the AI answer.
  *   - AI markdown prints the session id plus a `--session <id>` re-read hint
@@ -23,11 +25,10 @@ import type { AiAnswer } from "../../ai/agent.js";
 import { answerQuery, isAiConfigured, modelFromConfig, summarizeSession } from "../../ai/agent.js";
 import { renderDoctorReport, runDoctor } from "../../diagnostics/doctor.js";
 import { parseArgs, USAGE, type ParsedArgs } from "./args.js";
+import { createProgressReporter } from "./progress.js";
 import { version } from "../../version.js";
 
 loadDotenv({ path: `${process.cwd()}/.env` });
-
-const MARKDOWN_DISPLAY_CAP = 10;
 
 function printUsage(): void {
 	process.stdout.write(`${USAGE}\n`);
@@ -74,13 +75,29 @@ async function run(): Promise<number> {
 			const record: SessionRecord = await readSession(parsed.sessionId, config.storeDir);
 			if (parsed.useAi) {
 				const model = modelFromConfig(config);
-				const summary = await summarizeSession(model, record, record.query);
+				const progress = createProgressReporter({ json: parsed.json });
+				const followUpSessions: SearchResponse[] = [];
+				const summary = await summarizeSession(model, record, record.query, {
+					maxResults: config.maxResults,
+					maxAgentSearches: config.maxAgentSearches,
+					followUpSessions,
+					onProgress: (event) => progress.report(event),
+				});
 				if (parsed.json) {
-					const payload = { ...record, summary };
+					const payload = {
+						...record,
+						summary,
+						...(followUpSessions.length
+							? { followUpSessions: followUpSessions.map(({ sessionId, query }) => ({ sessionId, query })) }
+							: {}),
+					};
 					process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 				} else {
+					const extra = followUpSessions
+						.map((session) => `\n\n**Session:** ${session.sessionId}\nSearch query: ${JSON.stringify(session.query)}\n\nRaw results: web-search --session ${session.sessionId}`)
+						.join("");
 					process.stdout.write(
-						`**Session:** ${record.sessionId}\n\n${summary}\n\nRaw results: web-search --session ${record.sessionId}\n`,
+						`**Session:** ${record.sessionId}\n\n${summary}\n\nRaw results: web-search --session ${record.sessionId}${extra}\n`,
 					);
 				}
 				return 0;
@@ -89,7 +106,9 @@ async function run(): Promise<number> {
 			if (parsed.json) {
 				process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
 			} else {
-				process.stdout.write(`${renderMarkdown(response, MARKDOWN_DISPLAY_CAP)}\n`);
+				process.stdout.write(
+					`${renderMarkdown(response, config.maxResults, parsed.options.pageNo ?? 1)}\n`,
+				);
 			}
 			return 0;
 		} catch (err) {
@@ -118,9 +137,11 @@ async function run(): Promise<number> {
 		if (runAi) {
 			try {
 				const hasOverrides = Object.keys(parsed.options).length > 0;
+				const progress = createProgressReporter({ json: parsed.json });
 				const answer: AiAnswer = await answerQuery(parsed.query as string, {
 					...(hasOverrides ? { overrides: parsed.options } : {}),
 					...(parsed.debug ? { debug: true } : {}),
+					onProgress: (event) => progress.report(event),
 				});
 				for (const [engine, reason] of answer.unresponsiveEngines) {
 					process.stderr.write(`warning: engine ${engine} unresponsive (${reason})\n`);
@@ -143,15 +164,27 @@ async function run(): Promise<number> {
 	}
 
 	try {
-		const response = await search(parsed.query as string, {
+		const query = parsed.query as string;
+		const progress = createProgressReporter({ json: parsed.json });
+		progress.report({ step: "searching", index: 1, total: 1, query });
+		const config = await loadConfig();
+		const response = await search(query, {
 			...parsed.options,
 			...(parsed.debug ? { debug: true } : {}),
+		});
+		progress.report({
+			step: "searched",
+			index: 1,
+			total: 1,
+			query,
+			sessionId: response.sessionId,
+			resultCount: response.results.length,
 		});
 		warnUnresponsive(response);
 		if (parsed.json) {
 			process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
 		} else {
-			process.stdout.write(`${renderMarkdown(response, MARKDOWN_DISPLAY_CAP)}\n`);
+			process.stdout.write(`${renderMarkdown(response, config.maxResults)}\n`);
 		}
 		return 0;
 	} catch (err) {

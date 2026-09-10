@@ -5,6 +5,8 @@ import {
 	isAiConfigured,
 	isModelCallLimitTermination,
 	planQuery,
+	resolveMaxAgentSearches,
+	resolveMaxResults,
 	resolveRecursionLimit,
 	validateFootnotes,
 	validatePlan,
@@ -217,6 +219,8 @@ describe("isAiConfigured", () => {
 		timeoutMs: 10000,
 		storeDir: "/tmp/sessions",
 		debug: false,
+		maxResults: 15,
+		maxAgentSearches: 10,
 	};
 
 	it("is false without openai config", () => {
@@ -268,12 +272,66 @@ describe("resolveRecursionLimit", () => {
 	});
 });
 
+describe("resolveMaxResults", () => {
+	it("defaults to 15", () => {
+		expect(resolveMaxResults(undefined, { env: {} })).toBe(15);
+	});
+
+	it("prefers an explicit opt over env and config-file values", () => {
+		expect(
+			resolveMaxResults(3, { env: { WEB_SEARCH_MAX_RESULTS: "20" }, configValue: 12 }),
+		).toBe(3);
+	});
+
+	it("prefers WEB_SEARCH_MAX_RESULTS over the config-file value and default", () => {
+		expect(resolveMaxResults(undefined, { env: { WEB_SEARCH_MAX_RESULTS: "20" }, configValue: 12 })).toBe(20);
+		expect(resolveMaxResults(undefined, { env: { WEB_SEARCH_MAX_RESULTS: "20" } })).toBe(20);
+	});
+
+	it("falls back to the config-file value, then to the default", () => {
+		expect(resolveMaxResults(undefined, { env: {}, configValue: 12 })).toBe(12);
+		expect(resolveMaxResults(undefined, { env: {} })).toBe(15);
+	});
+
+	it("ignores a non-positive or non-numeric env value", () => {
+		expect(resolveMaxResults(undefined, { env: { WEB_SEARCH_MAX_RESULTS: "0" } })).toBe(15);
+		expect(resolveMaxResults(undefined, { env: { WEB_SEARCH_MAX_RESULTS: "lots" } })).toBe(15);
+	});
+});
+
+describe("resolveMaxAgentSearches", () => {
+	it("defaults to 10", () => {
+		expect(resolveMaxAgentSearches(undefined, { env: {} })).toBe(10);
+	});
+
+	it("prefers an explicit opt over env and config-file values", () => {
+		expect(
+			resolveMaxAgentSearches(2, { env: { WEB_SEARCH_MAX_AGENT_SEARCHES: "7" }, configValue: 5 }),
+		).toBe(2);
+	});
+
+	it("prefers WEB_SEARCH_MAX_AGENT_SEARCHES over the config-file value and default", () => {
+		expect(resolveMaxAgentSearches(undefined, { env: { WEB_SEARCH_MAX_AGENT_SEARCHES: "7" }, configValue: 5 })).toBe(7);
+	});
+
+	it("falls back to the config-file value, then to the default", () => {
+		expect(resolveMaxAgentSearches(undefined, { env: {}, configValue: 5 })).toBe(5);
+		expect(resolveMaxAgentSearches(undefined, { env: {} })).toBe(10);
+	});
+
+	it("ignores a non-positive env value", () => {
+		expect(resolveMaxAgentSearches(undefined, { env: { WEB_SEARCH_MAX_AGENT_SEARCHES: "-1" } })).toBe(10);
+	});
+});
+
 describe("modelFromConfig", () => {
 	const config: Config = {
 		searxngUrl: "https://search.example/",
 		timeoutMs: 10000,
 		storeDir: "/tmp/sessions",
 		debug: false,
+		maxResults: 15,
+		maxAgentSearches: 10,
 		openai: { baseUrl: "https://litellm.example/v1", model: "deepseek-v4-flash" },
 	};
 

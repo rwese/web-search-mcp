@@ -5,7 +5,7 @@
  * Locked by wayfinder ticket #9 (MCP server surface):
  *   - `search` is the only tool in the first build-out: query (required),
  *     categories, engines, language, timeRange, safeSearch, pageNo, maxResults
- *     (default 10). Returns lean markdown (session id + top-N results).
+ *     (default 15). Returns lean markdown (session id + top-N results).
  *   - no flag = stdio transport; `--http [port]` / PORT env = streamable HTTP
  *     on /mcp (Express + cors, one McpServer + transport per session).
  *   - backend config via loadConfig() (env + XDG); no CLI flags for the

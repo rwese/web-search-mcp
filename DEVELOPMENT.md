@@ -19,7 +19,9 @@ pnpm test       # vitest run only
 - `src/core/` — `search`, `session`, `types`, `errors`, `markdown`.
 - `src/infra/` — `config`, `debug`, `searxng` (wire client).
 - `src/ai/agent.ts` — AI answer loop: `planQuery`, `summarizeSession`,
-  `answerQuery`, `isAiConfigured`. Prompt and footnote rules live here.
+  `answerQuery`, `isAiConfigured`, plus the display/budget resolvers
+  (`resolveMaxResults`, `resolveMaxAgentSearches`). Prompt and footnote
+  rules live here.
 - `src/diagnostics/doctor.ts` — `--doctor` setup checks.
 - `src/surfaces/cli/` (`cli`, `args`), `src/surfaces/mcp/` (`mcp`, `server`,
   `http`, `stdio`, `constants`), `src/surfaces/pi/` (`tool`).
@@ -43,10 +45,12 @@ Plan → search → summarize (`src/ai/agent.ts`): the planner steers
 categories/engines/language/timeRange from the instance's live `/config`
 lists, the core searches and persists the session as usual, then a
 tool-calling summarizer answers the original query from a numbered session
-overview (top 10 by default) with one tool, `read_session_entry`, for full
-per-result records. Summaries cite with `[^n]` footnotes backed by a Sources
-section (`[^n]: [title](url)`); footnote failures retry once as a single
-direct call. The CLI runs the loop by default when the LLM is configured
+overview (top 15 by default) with two tools: `read_session_entry` for full
+per-result records and `search` for budgeted follow-up searches (10 per
+answer by default, exhausted -> `SearchVolumeExhausted` HTTP 429). Summaries
+cite with `[^n]` footnotes backed by a Sources section (`[^n]: [title](url)`);
+footnote failures retry once as a single direct call. The CLI runs the loop by
+default when the LLM is configured
 (model + API key; `isAiConfigured`); `--no-ai` opts out to raw results,
 `--use-ai` forces the loop, `--session` stays raw unless `--use-ai`.
 See `docs/agents/agentic-loop.md` for the footnote contract,

@@ -27,4 +27,4 @@ export type {
   SessionRecord,
   TimeRange,
 } from "./core/types.js";
-export { SearchError, SearxngError, SearchTimeout, SearchUnavailable } from "./core/errors.js";
+export { SearchError, SearxngError, SearchTimeout, SearchUnavailable, SearchVolumeExhausted } from "./core/errors.js";

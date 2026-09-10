@@ -60,7 +60,7 @@ Bare bin name below stands for that `npx … web-search` prefix:
 
 ```
 web-search "<query>" [flags]          search (AI answer when the LLM is configured, raw with --no-ai)
-web-search --session <id> [--json] [--use-ai]  re-read a saved session (raw unless --use-ai)
+web-search --session <id> [--page <n>] [--json] [--use-ai]  re-read a saved session (raw unless --use-ai)
 web-search --doctor [--json]          validate your setup
 web-search --help                     show help (includes the version)
 web-search --version                  print the version and exit
@@ -73,7 +73,7 @@ web-search --version                  print the version and exit
 | `--language <code>` | e.g. `--language en`, `--language de`                          |
 | `--time-range <x>`  | `day` \| `month` \| `year` (e.g. `day` for news from the last 24h) |
 | `--safesearch <n>`  | `0` off, `1` moderate, `2` strict                              |
-| `--page <n>`        | result page number                                             |
+| `--page <n>`        | result page (search: next SearXNG page; `--session`: page of stored results) |
 | `--session <id>`    | show a saved session instead of searching (no query allowed)   |
 | `--use-ai`          | answer with the AI loop (default when the LLM is configured)   |
 | `--no-ai`           | list raw results even when the LLM is configured               |
@@ -92,8 +92,9 @@ Exit codes: `0` success (even with zero results), `1` runtime error,
 web-search "what is kubernetes"
 ```
 
-Output is readable markdown showing the top 10 hits (the full result set is
-always saved — see [sessions](#sessions)):
+Output is readable markdown showing 15 hits per page (the full result set is
+always saved — see [sessions](#sessions); page past it with
+`--session <id> --page <n>`):
 
 ```markdown
 **Session:** cc6a54d5-what-is-kubernetes
@@ -176,8 +177,16 @@ Every search persists an immutable session on disk and prints its id in the
 ```sh
 NPX="web-search"
 $NPX --session cc6a54d5-what-is-kubernetes
+$NPX --session cc6a54d5-what-is-kubernetes --page 2
 $NPX --session cc6a54d5-what-is-kubernetes --json
 ```
+
+When a session's results span more than one page (page size = `maxResults`,
+15 by default), the markdown footer reads `Showing X of Y page Z, to get
+further results: web-search --session <id> --page <Z+1>`. A live search's
+`--page <n>` means something else — it asks SearXNG for the next result page
+(a new session), whereas paging a `--session` re-read walks the
+already-stored results.
 
 Sessions live under `$XDG_DATA_HOME/web-search/sessions/` (fallback
 `~/.local/share/web-search/sessions/`) in folders named
@@ -189,9 +198,12 @@ A plain `web-search "<query>"` answers via the plan → search → aggregate →
 loop whenever the LLM is configured (model + API key). The planner breaks the
 request into 1–5 focused search queries and picks shared categories/engines
 from your instance's live config. Each query runs in order and saves its own
-session. The top 10 results per session are aggregated into a Markdown prompt,
+session. The top 15 results per session are aggregated into a Markdown prompt,
 under search-session and search-query headings, then synthesized into one
-answer with globally numbered footnote citations.
+answer with globally numbered footnote citations. The summarizer may run
+additional targeted searches through its `search` tool (budget: 10 per answer,
+configurable); the follow-up sessions and their results extend the global
+numbering.
 
 The markdown output prints every `**Session:**` id and search query plus a
 `Raw results: web-search --session <id>` hint so the raw hits stay reviewable.
@@ -220,12 +232,17 @@ Sources
 Raw results: web-search --session 9be21cc4-latest-pi-5-news
 ```
 
-Pass `--no-ai` for the raw top-10 result list instead, or `--use-ai` to
+Pass `--no-ai` for the raw top-15 result list instead, or `--use-ai` to
 force the AI answer explicitly. `--session <id>` stays raw unless `--use-ai`
 is passed. Explicit flags always override the AI plan, e.g.
 `--use-ai --language de --engines wikipedia` forces those choices.
 
 ### Debugging
+
+Interactive runs (TTY, human-readable output) print one progress line per
+step to stderr — planning, each search, synthesizing — so the long `--use-ai`
+loop is never silent. Piped stderr and `--json` stay silent, so scripts and
+`jq` keep working.
 
 `--debug` (or `WEB_SEARCH_DEBUG=1`) prints verbose diagnostics — request URLs
 and timing, session persistence, and with `--use-ai` the plan decision, tool
@@ -250,6 +267,8 @@ entrypoints before startup; the core itself never loads dotenv.
 | `SEARXNG_TIMEOUT_MS` | no             | `10000`   | per-request timeout in ms                           |
 | `WEB_SEARCH_DEBUG`   | no             | `0`       | verbose stderr logging; `1` to enable               |
 | `WEB_SEARCH_RECURSION_LIMIT` | no       | `50`      | LangChain graph recursion cap for the `--use-ai` summarizer (default `maxModelCalls * 4 + 10`); raise if you hit "Recursion limit ... reached" |
+| `WEB_SEARCH_MAX_RESULTS`     | no       | `15`      | display cap for markdown summaries and session overviews (never truncates the persisted session) |
+| `WEB_SEARCH_MAX_AGENT_SEARCHES` | no    | `10`      | follow-up `search` tool budget per `--use-ai` answer; when exhausted the agent gets `search volume exhausted` (HTTP 429) |
 | `OPENAI_BASE_URL`    | for `--use-ai` | —         | OpenAI-compatible endpoint                          |
 | `OPENAI_MODEL`       | for `--use-ai` | —         | model name (e.g. `deepseek-v4-flash`)               |
 | `OPENAI_API_KEY`     | for `--use-ai` | —         | key; env wins, `openai.apiKey` in the XDG config file is the fallback (mode 0600, single line) |
@@ -263,6 +282,8 @@ XDG config file example:
   "timeoutMs": 10000,
   "storeDir": "/custom/path/to/sessions",
   "debug": false,
+  "maxResults": 15,
+  "maxAgentSearches": 10,
   "openai": {
     "baseUrl": "https://litellm.void.cold.at/v1",
     "model": "deepseek-v4-flash",
@@ -322,7 +343,7 @@ pi install npm:@rwese/web-search-mcp   # then use the search tool
 Tool contract (`search` — the only tool): required `query: string`; optional
 `categories: string[]`, `engines: string[]` (default: all available engines),
 `language: string`, `timeRange: day|month|year`, `safeSearch: 0|1|2`,
-`pageNo: number`, `maxResults: number` (default 10, max 50). Returns lean
+`pageNo: number`, `maxResults: number` (default 15, max 50). Returns lean
 markdown: a `Session:` id line, then `title` / `url` / `snippet` / `engine` /
 `category` per result. Agent guidance:
 

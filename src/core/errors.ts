@@ -32,3 +32,16 @@ export class SearchUnavailable extends SearchError {
     this.name = "SearchUnavailable";
   }
 }
+
+/**
+ * The summarizer agent's follow-up `search` budget is spent. Surfaces as
+ * HTTP 429 (Too Many Requests) on the MCP/HTTP transports.
+ */
+export class SearchVolumeExhausted extends SearchError {
+  readonly status = 429;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "SearchVolumeExhausted";
+  }
+}

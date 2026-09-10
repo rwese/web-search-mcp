@@ -7,6 +7,8 @@ const CONFIG: Config = {
 	timeoutMs: 10000,
 	storeDir: "/tmp/sessions",
 	debug: false,
+	maxResults: 15,
+	maxAgentSearches: 10,
 };
 
 const INSTANCE = {

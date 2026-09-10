@@ -14,7 +14,7 @@ import { randomUUID } from "node:crypto";
 import type { BaseMessage, MessageContent } from "@langchain/core/messages";
 import { z } from "zod";
 import type { Config } from "../infra/config.js";
-import { openaiApiKey } from "../infra/config.js";
+import { DEFAULT_MAX_AGENT_SEARCHES, DEFAULT_MAX_RESULTS, openaiApiKey } from "../infra/config.js";
 import { createDebugLogger, resolveDebug, toLogger, type DebugLogger } from "../infra/debug.js";
 import {
 	footnoteFixMessage,
@@ -24,8 +24,8 @@ import {
 } from "./prompts.js";
 import { search } from "../core/search.js";
 import { enabledEngineNames, fetchInstanceConfig, instanceCategories } from "../infra/searxng.js";
-import type { SearchOptions, SearchResult } from "../core/types.js";
-import { SearchError } from "../core/errors.js";
+import type { SearchOptions, SearchResponse, SearchResult } from "../core/types.js";
+import { SearchError, SearchVolumeExhausted } from "../core/errors.js";
 
 /** Minimal session shape the summarizer needs (SearchResponse and SessionRecord both fit). */
 export type SessionLike = {
@@ -48,10 +48,47 @@ export const SearchPlanSchema = z.object({
 
 export type SearchPlan = z.infer<typeof SearchPlanSchema>;
 
-const DEFAULT_OVERVIEW_CAP = 10;
+const DEFAULT_OVERVIEW_CAP = DEFAULT_MAX_RESULTS;
 const DEFAULT_MODEL_CALL_LIMIT = 10;
+const DEFAULT_AGENT_SEARCH_LIMIT = DEFAULT_MAX_AGENT_SEARCHES;
 const RECURSION_LIMIT_OFFSET = 10;
 const RECURSION_LIMIT_MULTIPLIER = 4;
+
+/** Parse a positive-int env/file value; undefined when missing or invalid. */
+function positiveInt(raw: string | number | undefined): number | undefined {
+	if (raw === undefined) return undefined;
+	const parsed = typeof raw === "number" ? raw : Number(String(raw).trim());
+	return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+/**
+ * Resolve the per-session overview cap.
+ *
+ * Precedence: explicit opt > `WEB_SEARCH_MAX_RESULTS` env (positive
+ * integer) > config-file value > built-in default (15). Display-only —
+ * the persisted session always keeps the full result set.
+ */
+export function resolveMaxResults(
+	explicit?: number,
+	opts: { env?: Record<string, string | undefined>; configValue?: number } = {},
+): number {
+	const env = opts.env ?? process.env;
+	return positiveInt(explicit) ?? positiveInt(env.WEB_SEARCH_MAX_RESULTS) ?? positiveInt(opts.configValue) ?? DEFAULT_OVERVIEW_CAP;
+}
+
+/**
+ * Resolve the follow-up `search` tool budget per summarize run.
+ *
+ * Precedence: explicit opt > `WEB_SEARCH_MAX_AGENT_SEARCHES` env
+ * (positive integer) > config-file value > built-in default (10).
+ */
+export function resolveMaxAgentSearches(
+	explicit?: number,
+	opts: { env?: Record<string, string | undefined>; configValue?: number } = {},
+): number {
+	const env = opts.env ?? process.env;
+	return positiveInt(explicit) ?? positiveInt(env.WEB_SEARCH_MAX_AGENT_SEARCHES) ?? positiveInt(opts.configValue) ?? DEFAULT_AGENT_SEARCH_LIMIT;
+}
 
 /**
  * Resolve the LangChain graph recursion cap for the summarizer agent.
@@ -302,7 +339,10 @@ export function validateFootnotes(summary: string, resultCount: number): string[
 /**
  * Synthesize persisted sessions for the original query via a tool-calling
  * agent. Overviews are grouped by session/query; global result numbers also
- * address full per-result records through read_session_entry.
+ * address full per-result records through read_session_entry. The agent can
+ * run follow-up searches through the search tool (budgeted by
+ * maxAgentSearches); new results extend the global numbering and are
+ * appended to `followUpSessions` for callers that report session ids.
  */
 export async function summarizeSession(
 	model: ChatOpenAI,
@@ -310,16 +350,24 @@ export async function summarizeSession(
 	originalQuery: string,
 	opts: {
 		maxResults?: number;
+		maxAgentSearches?: number;
 		maxModelCalls?: number;
 		recursionLimit?: number;
+		/** Base search filters inherited by the agent's follow-up searches. */
+		searchOptions?: SearchOptions;
+		/** Collects the agent's follow-up search sessions (in run order). */
+		followUpSessions?: SearchResponse[];
 		debug?: boolean | DebugLogger;
+		onProgress?: (event: ProgressEvent) => void;
 	} = {},
 ): Promise<string> {
-	const maxResults = opts.maxResults ?? DEFAULT_OVERVIEW_CAP;
+	const maxResults = resolveMaxResults(opts.maxResults);
+	const maxAgentSearches = resolveMaxAgentSearches(opts.maxAgentSearches);
 	const maxModelCalls = opts.maxModelCalls ?? DEFAULT_MODEL_CALL_LIMIT;
 	const debug = toLogger(opts.debug);
 	const sessions = Array.isArray(session) ? session : [session];
 	const results = sessions.flatMap((entry) => entry.results);
+	const followUps: SearchResponse[] = opts.followUpSessions ?? [];
 	if (results.length === 0) {
 		debug.log('agent', `summarize "${originalQuery}"`, {
 			sessionIds: sessions.map((entry) => entry.sessionId),
@@ -329,18 +377,26 @@ export async function summarizeSession(
 		});
 		return zeroResultSummary(originalQuery);
 	}
-	let resultOffset = 0;
-	const overview = sessions.map((entry) => {
-		const text = buildSessionOverview(entry, maxResults, resultOffset);
-		resultOffset += entry.results.length;
-		return text;
+	const overview = sessions.map((entry, index) => {
+		const offset = sessions.slice(0, index).reduce((total, prior) => total + prior.results.length, 0);
+		return buildSessionOverview(entry, maxResults, offset);
 	}).join("\n\n");
-	debug.log('agent', `summarize "${originalQuery}"`, {
+	const renderFullOverview = () => {
+		let offset = 0;
+		return [...sessions, ...followUps].map((entry) => {
+			const text = buildSessionOverview(entry, maxResults, offset);
+			offset += entry.results.length;
+			return text;
+		}).join("\n\n");
+	};
+ 	debug.log('agent', `summarize "${originalQuery}"`, {
 		sessionIds: sessions.map((entry) => entry.sessionId),
 		results: results.length,
 		maxResults,
 		maxModelCalls,
+		maxAgentSearches,
 	});
+	opts.onProgress?.({ step: "synthesizing" });
 
 	const readEntry = tool(
 		({ resultNumber }: { resultNumber: number }) => {
@@ -361,9 +417,45 @@ export async function summarizeSession(
 		},
 	);
 
+	let agentSearches = 0;
+	const agentSearch = tool(
+		async ({ query }: { query: string }) => {
+			if (agentSearches >= maxAgentSearches) {
+				throw new SearchVolumeExhausted(
+					`search volume exhausted: already ran ${maxAgentSearches} additional search(es) ` +
+					`(HTTP 429). Refine the answer from the results so far.`,
+				);
+			}
+			agentSearches += 1;
+			debug.log('agent', `tool search(${agentSearches}/${maxAgentSearches}) "${query}"`);
+			const response = await search(query, { ...opts.searchOptions, debug });
+			followUps.push(response);
+			const base = results.length;
+			results.push(...response.results);
+			const overview = buildSessionOverview(
+				{ sessionId: response.sessionId, query: response.query, results: response.results, suggestions: response.suggestions },
+				maxResults,
+				base,
+			);
+			return [
+				`New session ${response.sessionId} (${response.results.length} result(s)); global numbers ${base + 1}..${results.length}.`,
+				overview,
+			].join("\n");
+		},
+		{
+			name: "search",
+			description:
+				`Run one additional web search and append its results to the session overview ` +
+				`(budget: ${maxAgentSearches} call(s) per answer; further calls fail with search volume exhausted).`,
+			schema: z.object({
+				query: z.string().trim().min(1).describe("follow-up search query"),
+			}),
+		},
+	);
+
 	const agent = createAgent({
 		model,
-		tools: [readEntry],
+		tools: [readEntry, agentSearch],
 		systemPrompt: SUMMARIZER_SYSTEM_PROMPT,
 		middleware: [modelCallLimitMiddleware({ threadLimit: maxModelCalls, exitBehavior: "end" })],
 	});
@@ -386,13 +478,22 @@ export async function summarizeSession(
 		);
 	}
 	const errors = validateFootnotes(text, results.length);
-	if (errors.length === 0) return text;
+	if (errors.length === 0) {
+		opts.onProgress?.({
+			step: "done",
+			sessionCount: sessions.length + followUps.length,
+			resultCount: results.length,
+		});
+		return text;
+	}
 	debug.log('agent', 'footnote validation failed, retrying once', { errors });
 
 	// One retry as a single direct call (no tool loop), so the agent cannot
 	// spin on tool calls and hit the graph recursion cap while fixing format.
+	// Follow-up searches extended the overview, so repair against the full
+	// context including them.
 	const fix = await model.invoke(
-		footnoteFixMessage({ originalQuery, overview, errors, draft: text }),
+		footnoteFixMessage({ originalQuery, overview: renderFullOverview(), errors, draft: text }),
 	);
 	const fixed = contentToText(fix.content);
 	debug.log('agent', 'footnote fix call done', { chars: fixed.length });
@@ -400,16 +501,40 @@ export async function summarizeSession(
 	if (remaining.length > 0) {
 		throw new SearchError(`AI summary failed footnote validation: ${remaining.join("; ")}`);
 	}
+	opts.onProgress?.({
+		step: "done",
+		sessionCount: sessions.length + followUps.length,
+		resultCount: results.length,
+	});
 	return fixed;
 }
+
+export type ProgressEvent =
+	| { step: "planning" }
+	| { step: "plan-decided"; queries: string[] }
+	| { step: "searching"; index: number; total: number; query: string }
+	| {
+		step: "searched";
+		index: number;
+		total: number;
+		query: string;
+		sessionId: string;
+		resultCount: number;
+	}
+	| { step: "synthesizing" }
+	| { step: "done"; sessionCount: number; resultCount: number };
 
 export type AiAnswerOptions = {
 	/** Explicit search flags from the CLI; these win over the AI plan. */
 	overrides?: SearchOptions;
-	/** Number of top results included inline per search session (default 10). */
+	/** Number of top results included inline per search session (default 15). */
 	maxResults?: number;
+	/** Follow-up `search` tool budget per answer (default 10). */
+	maxAgentSearches?: number;
 	/** Verbose stderr logging for the plan -> search -> summarize loop. */
 	debug?: boolean | DebugLogger;
+	/** Progress callback for interactive CLI output (stderr). Never required; never affects stdout. */
+	onProgress?: (event: ProgressEvent) => void;
 };
 
 export type AiAnswer = {
@@ -444,11 +569,13 @@ export async function answerQuery(query: string, aiOptions: AiAnswerOptions = {}
 	const instance = await fetchInstanceConfig(config.searxngUrl, config.timeoutMs, { debug });
 	const categories = instanceCategories(instance);
 	const engines = enabledEngineNames(instance);
+	aiOptions.onProgress?.({ step: "planning" });
 	const plan = validatePlan(
 		await planQuery(model, query, categories, engines, { debug }),
 		categories,
 		engines,
 	);
+	aiOptions.onProgress?.({ step: "plan-decided", queries: plan.queries });
 
 	const merged: SearchOptions = {
 		...(plan.categories.length ? { categories: plan.categories } : {}),
@@ -459,21 +586,43 @@ export async function answerQuery(query: string, aiOptions: AiAnswerOptions = {}
 		debug,
 	};
 	const responses = [];
-	for (const searchQuery of plan.queries) {
-		responses.push(await search(searchQuery, merged));
+	for (const [index, searchQuery] of plan.queries.entries()) {
+		aiOptions.onProgress?.({ step: "searching", index: index + 1, total: plan.queries.length, query: searchQuery });
+		const response = await search(searchQuery, merged);
+		aiOptions.onProgress?.({
+			step: "searched",
+			index: index + 1,
+			total: plan.queries.length,
+			query: searchQuery,
+			sessionId: response.sessionId,
+			resultCount: response.results.length,
+		});
+		responses.push(response);
 	}
+	aiOptions.onProgress?.({ step: "synthesizing" });
+	const followUpSessions: SearchResponse[] = [];
 	const summary = await summarizeSession(model, responses, query, {
-		maxResults: aiOptions.maxResults,
+		maxResults: aiOptions.maxResults ?? config.maxResults,
+		maxAgentSearches: aiOptions.maxAgentSearches ?? config.maxAgentSearches,
+		searchOptions: Object.fromEntries(Object.entries(merged).filter(([key]) => key !== "debug")),
+		followUpSessions,
 		debug,
+		onProgress: aiOptions.onProgress
+			? (event) => {
+					if (event.step === "synthesizing") return;
+					aiOptions.onProgress?.(event);
+				}
+			: undefined,
 	});
+	const allSessions = [...responses, ...followUpSessions];
 
 	return {
 		query,
 		sessionId: responses[0].sessionId,
-		sessions: responses.map((response) => ({ sessionId: response.sessionId, query: response.query })),
+		sessions: allSessions.map((response) => ({ sessionId: response.sessionId, query: response.query })),
 		plan,
 		summary,
-		unresponsiveEngines: responses.flatMap((response) => response.unresponsiveEngines)
+		unresponsiveEngines: allSessions.flatMap((response) => response.unresponsiveEngines)
 			.filter(([engine, reason], index, all) =>
 				all.findIndex(([otherEngine, otherReason]) => engine === otherEngine && reason === otherReason) === index),
 	};
