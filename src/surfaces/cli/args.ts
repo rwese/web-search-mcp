@@ -1,4 +1,4 @@
-import type { SearchOptions } from "../../core/types.js";
+import type { SafeSearch, SearchOptions, TimeRange } from "../../core/types.js";
 import { version } from "../../version.js";
 
 export const USAGE = `web-search ${version} — SearXNG-backed web search
@@ -7,6 +7,7 @@ Usage:
   web-search "<query>" [flags]
   web-search --session <id> [--json]
   web-search --doctor [--json]
+  web-search --default-config
   web-search --help
   web-search --version
 
@@ -23,6 +24,7 @@ Flags:
   --no-ai              list raw results instead of the AI answer (opt out of the default)
   --debug              verbose stderr logging (search requests, AI loop, tool use)
   --doctor             validate setup: config, SearXNG, engines, probe search, LLM
+  --default-config     print default config JSON; config file path goes to stderr
   --json               structured output (default: markdown)
   --help               show this help
   --version            print the version and exit
@@ -39,23 +41,36 @@ export type ParsedArgs = {
 	noAi?: boolean;
 	debug?: boolean;
 	doctor?: boolean;
+	defaultConfig?: boolean;
 	options: SearchOptions;
 };
 
-const FLAG_KEYS: Record<string, keyof SearchOptions | "json" | "session" | "useAi" | "noAi" | "debug" | "doctor"> = {
-	"--categories": "categories",
-	"--engines": "engines",
-	"--language": "language",
-	"--time-range": "timeRange",
-	"--safesearch": "safeSearch",
-	"--page": "pageNo",
+/** Boolean flags and the `ParsedArgs` field each one sets. */
+type BooleanFlag = "help" | "version" | "json" | "useAi" | "noAi" | "debug" | "doctor" | "defaultConfig";
+
+/** Working accumulator; positionals feed the joined query at the end. */
+type ArgState = ParsedArgs & { positionals: string[] };
+
+type ValueHandler = (state: ArgState, flag: string, value: string) => void;
+
+const BOOLEAN_FLAGS: Record<string, BooleanFlag | undefined> = {
+	"--help": "help",
+	"--version": "version",
 	"--json": "json",
-	"--session": "session",
 	"--use-ai": "useAi",
 	"--no-ai": "noAi",
 	"--debug": "debug",
 	"--doctor": "doctor",
+	"--default-config": "defaultConfig",
 };
+
+const TIME_RANGES = ["day", "month", "year"] as const;
+
+const splitCsv = (value: string): string[] =>
+	value
+		.split(",")
+		.map((part) => part.trim())
+		.filter(Boolean);
 
 function fail(message: string): never {
 	throw new Error(message);
@@ -68,54 +83,117 @@ function parseEnum<T extends string>(flag: string, value: string, allowed: reado
 	fail(`flag ${flag} must be one of ${allowed.join(" | ")}, got "${value}"`);
 }
 
+function parseTimeRange(flag: string, value: string): TimeRange {
+	return parseEnum(flag, value, TIME_RANGES);
+}
+
+function parseSafeSearch(flag: string, value: string): SafeSearch {
+	const level = Number(value);
+	if (level !== 0 && level !== 1 && level !== 2) {
+		fail(`flag ${flag} must be one of 0 | 1 | 2, got "${value}"`);
+	}
+	return level as SafeSearch;
+}
+
+function parsePage(flag: string, value: string): number {
+	const page = Number(value);
+	if (!Number.isInteger(page) || page < 1) {
+		fail(`flag ${flag} must be a positive integer, got "${value}"`);
+	}
+	return page;
+}
+
+const VALUE_FLAGS: Record<string, ValueHandler | undefined> = {
+	"--categories": (state, _flag, value) => {
+		state.options.categories = splitCsv(value);
+	},
+	"--engines": (state, _flag, value) => {
+		state.options.engines = splitCsv(value);
+	},
+	"--language": (state, _flag, value) => {
+		state.options.language = value;
+	},
+	"--time-range": (state, flag, value) => {
+		state.options.timeRange = parseTimeRange(flag, value);
+	},
+	"--safesearch": (state, flag, value) => {
+		state.options.safeSearch = parseSafeSearch(flag, value);
+	},
+	"--page": (state, flag, value) => {
+		state.options.pageNo = parsePage(flag, value);
+	},
+	"--session": (state, _flag, value) => {
+		state.sessionId = value;
+	},
+};
+
+function hasSearchFlags(args: ParsedArgs): boolean {
+	return Object.keys(args.options).length > 0;
+}
+
+function rejectDefaultConfigConflicts(args: ParsedArgs): void {
+	const conflicts = [
+		args.query,
+		args.sessionId,
+		args.version,
+		args.doctor,
+		args.json,
+		args.debug,
+		args.useAi,
+		args.noAi,
+		hasSearchFlags(args),
+	];
+	if (args.defaultConfig && conflicts.some(Boolean)) {
+		fail("--default-config takes no query or other flags except --help");
+	}
+}
+
+function rejectVersionConflicts(args: ParsedArgs): void {
+	const conflicts = [args.query, args.sessionId, args.doctor, args.useAi, args.noAi, hasSearchFlags(args)];
+	if (args.version && conflicts.some(Boolean)) {
+		fail("--version takes no query, --session, --doctor, --use-ai, --no-ai, or search flags");
+	}
+}
+
+function rejectDoctorConflicts(args: ParsedArgs): void {
+	const conflicts = [args.query, args.sessionId, args.useAi, args.noAi, hasSearchFlags(args)];
+	if (args.doctor && conflicts.some(Boolean)) {
+		fail("--doctor takes no query, --session, --use-ai, --no-ai, or search flags");
+	}
+}
+
+function validateArgs(args: ParsedArgs): void {
+	rejectDefaultConfigConflicts(args);
+	rejectVersionConflicts(args);
+	rejectDoctorConflicts(args);
+	if (args.useAi && args.noAi) {
+		fail("pass either --use-ai or --no-ai, not both");
+	}
+	if (args.query && args.sessionId) {
+		fail("pass either a query or --session <id>, not both");
+	}
+	const targets = [args.help, args.version, args.doctor, args.defaultConfig, args.query, args.sessionId];
+	if (!targets.some(Boolean)) {
+		fail("missing query");
+	}
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
-	const options: SearchOptions = {};
-	const positionals: string[] = [];
-	let help = false;
-	let showVersion = false;
-	let json = false;
-	let useAi = false;
-	let noAi = false;
-	let debug = false;
-	let doctor = false;
-	let sessionId: string | undefined;
+	const state: ArgState = { options: {}, positionals: [] };
 
 	for (let i = 0; i < argv.length; i += 1) {
 		const arg = argv[i];
-		if (arg === "--help") {
-			help = true;
+		const booleanFlag = Object.hasOwn(BOOLEAN_FLAGS, arg) ? BOOLEAN_FLAGS[arg] : undefined;
+		if (booleanFlag !== undefined) {
+			state[booleanFlag] = true;
 			continue;
 		}
-		if (arg === "--version") {
-			showVersion = true;
-			continue;
-		}
-		if (arg === "--json") {
-			json = true;
-			continue;
-		}
-		if (arg === "--use-ai") {
-			useAi = true;
-			continue;
-		}
-		if (arg === "--no-ai") {
-			noAi = true;
-			continue;
-		}
-		if (arg === "--debug") {
-			debug = true;
-			continue;
-		}
-		if (arg === "--doctor") {
-			doctor = true;
-			continue;
-		}
-		const key = FLAG_KEYS[arg];
-		if (!key) {
+		const parseValue = Object.hasOwn(VALUE_FLAGS, arg) ? VALUE_FLAGS[arg] : undefined;
+		if (parseValue === undefined) {
 			if (arg.startsWith("-")) {
 				fail(`unknown flag ${arg}`);
 			}
-			positionals.push(arg);
+			state.positionals.push(arg);
 			continue;
 		}
 		const value = argv[i + 1];
@@ -123,60 +201,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
 			fail(`flag ${arg} needs a value`);
 		}
 		i += 1;
-		switch (key) {
-			case "categories":
-			case "engines":
-				options[key] = value
-					.split(",")
-					.map((part) => part.trim())
-					.filter(Boolean);
-				break;
-			case "language":
-				options.language = value;
-				break;
-			case "timeRange":
-				options.timeRange = parseEnum(arg, value, ["day", "month", "year"] as const);
-				break;
-			case "safeSearch": {
-				const level = Number(value);
-				if (level !== 0 && level !== 1 && level !== 2) {
-					fail(`flag ${arg} must be one of 0 | 1 | 2, got "${value}"`);
-				}
-				options.safeSearch = level;
-				break;
-			}
-			case "pageNo": {
-				const page = Number(value);
-				if (!Number.isInteger(page) || page < 1) {
-					fail(`flag ${arg} must be a positive integer, got "${value}"`);
-				}
-				options.pageNo = page;
-				break;
-			}
-			case "session":
-				sessionId = value;
-				break;
-			default:
-				fail(`unknown flag ${arg}`);
-		}
+		parseValue(state, arg, value);
 	}
 
+	const { positionals, ...rest } = state;
 	const query = positionals.join(" ").trim() || undefined;
-	if (showVersion && (query || sessionId || doctor || useAi || noAi || Object.keys(options).length > 0)) {
-		fail("--version takes no query, --session, --doctor, --use-ai, --no-ai, or search flags");
-	}
-	if (doctor && (query || sessionId || useAi || noAi || Object.keys(options).length > 0)) {
-		fail("--doctor takes no query, --session, --use-ai, --no-ai, or search flags");
-	}
-	if (useAi && noAi) {
-		fail("pass either --use-ai or --no-ai, not both");
-	}
-	if (query && sessionId) {
-		fail("pass either a query or --session <id>, not both");
-	}
-	if (!help && !showVersion && !doctor && !query && !sessionId) {
-		fail("missing query");
-	}
-
-	return { help, version: showVersion, query, sessionId, json, useAi, noAi, debug, doctor, options };
+	const args: ParsedArgs = { ...rest, query };
+	validateArgs(args);
+	return args;
 }

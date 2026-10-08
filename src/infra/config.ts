@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { SearchError } from "../core/errors.js";
-import { resolveEnvDebug } from "./debug.js";
+import { resolveEnvDebug } from "./debug-env.js";
 
 /**
  * Configuration resolution, per the wayfinder map (config schema & precedence).
@@ -57,7 +57,7 @@ export type ConfigFile = {
   };
 };
 
-export const DEFAULT_TIMEOUT_MS = 10000;
+const DEFAULT_TIMEOUT_MS = 10000;
 export const DEFAULT_MAX_RESULTS = 15;
 export const DEFAULT_MAX_AGENT_SEARCHES = 10;
 
@@ -67,7 +67,7 @@ function positiveInt(raw: string | number | undefined): number | undefined {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function xdgConfigPath(): string {
+export function xdgConfigPath(): string {
   const base = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
   return join(base, "web-search", "config.json");
 }
@@ -78,6 +78,19 @@ function xdgDataDir(): string {
 
 export function defaultStoreDir(): string {
   return join(xdgDataDir(), "web-search", "sessions");
+}
+
+/** Built-in configuration template, independent of existing config and credentials. */
+export function defaultConfig(): ConfigFile {
+  return {
+    searxngUrl: "",
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+    storeDir: defaultStoreDir(),
+    debug: false,
+    maxResults: DEFAULT_MAX_RESULTS,
+    maxAgentSearches: DEFAULT_MAX_AGENT_SEARCHES,
+    openai: { baseUrl: "", model: "", apiKey: "" },
+  };
 }
 
 async function readConfigFile(): Promise<ConfigFile> {
@@ -93,9 +106,8 @@ async function readConfigFile(): Promise<ConfigFile> {
   }
 }
 
-export async function loadConfig(): Promise<Config> {
-  const file = await readConfigFile();
-
+/** Resolve the SearXNG URL: env wins, else the config file; fail fast when unset. */
+function resolveSearxngUrl(file: ConfigFile): string {
   const searxngUrl = process.env.SEARXNG_URL || file.searxngUrl;
   if (!searxngUrl) {
     throw new SearchError(
@@ -103,41 +115,52 @@ export async function loadConfig(): Promise<Config> {
         "($XDG_CONFIG_HOME/web-search/config.json).",
     );
   }
+  return searxngUrl;
+}
 
+/** Resolve the request timeout: env wins, else the config file, else the default. */
+function resolveTimeoutMs(file: ConfigFile): number {
   const timeoutRaw = process.env.SEARXNG_TIMEOUT_MS || file.timeoutMs;
-  const timeoutMs =
-    timeoutRaw === undefined ? DEFAULT_TIMEOUT_MS : Number(timeoutRaw) || DEFAULT_TIMEOUT_MS;
+  return timeoutRaw === undefined ? DEFAULT_TIMEOUT_MS : Number(timeoutRaw) || DEFAULT_TIMEOUT_MS;
+}
 
-  const envDebug = resolveEnvDebug();
-
-  const maxResults =
+function resolveMaxResults(file: ConfigFile): number {
+  return (
     positiveInt(process.env.WEB_SEARCH_MAX_RESULTS) ??
     positiveInt(file.maxResults) ??
-    DEFAULT_MAX_RESULTS;
-  const maxAgentSearches =
+    DEFAULT_MAX_RESULTS
+  );
+}
+
+function resolveMaxAgentSearches(file: ConfigFile): number {
+  return (
     positiveInt(process.env.WEB_SEARCH_MAX_AGENT_SEARCHES) ??
     positiveInt(file.maxAgentSearches) ??
-    DEFAULT_MAX_AGENT_SEARCHES;
+    DEFAULT_MAX_AGENT_SEARCHES
+  );
+}
 
-  const openaiBaseUrl = process.env.OPENAI_BASE_URL || file.openai?.baseUrl;
-  const openaiModel = process.env.OPENAI_MODEL || file.openai?.model;
-  const openaiApiKey = process.env.OPENAI_API_KEY || file.openai?.apiKey;
+/** Resolve the OpenAI block: env wins per field, else the config file, else undefined. */
+function resolveOpenAi(file: ConfigFile): Config["openai"] {
+  const fromFile = file.openai ?? {};
+  const baseUrl = process.env.OPENAI_BASE_URL || fromFile.baseUrl;
+  const model = process.env.OPENAI_MODEL || fromFile.model;
+  const apiKey = process.env.OPENAI_API_KEY || fromFile.apiKey;
+  if (!file.openai && !baseUrl && !model && !apiKey) return undefined;
+  return { baseUrl, model, apiKey };
+}
+
+export async function loadConfig(): Promise<Config> {
+  const file = await readConfigFile();
 
   return {
-    searxngUrl,
-    timeoutMs,
+    searxngUrl: resolveSearxngUrl(file),
+    timeoutMs: resolveTimeoutMs(file),
     storeDir: file.storeDir || defaultStoreDir(),
-    debug: envDebug ?? file.debug ?? false,
-    maxResults,
-    maxAgentSearches,
-    openai:
-      file.openai || openaiBaseUrl || openaiModel || openaiApiKey
-        ? {
-            baseUrl: openaiBaseUrl,
-            model: openaiModel,
-            apiKey: openaiApiKey,
-          }
-        : undefined,
+    debug: resolveEnvDebug() ?? file.debug ?? false,
+    maxResults: resolveMaxResults(file),
+    maxAgentSearches: resolveMaxAgentSearches(file),
+    openai: resolveOpenAi(file),
   };
 }
 

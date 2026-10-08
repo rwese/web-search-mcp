@@ -9,8 +9,10 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
 
 - `pnpm install` — deps (tsgo ships via `@typescript/native-preview`; the
   ignored-build-scripts warning is harmless)
-- `pnpm validate` — typecheck (tsgo) + lint (eslint 9) + tests (vitest); run
-  before every commit
+- `pnpm validate` — typecheck (tsgo) + lint (eslint 9) + fallow (dead code,
+  duplication, complexity) + tests (vitest); run before every commit
+- `pnpm fallow` — code-intelligence report (config in `.fallowrc.jsonc`);
+  `pnpm fallow:audit` scopes findings to the current change
 - `pnpm build` — emit `dist/` (bins get chmod +x)
 
 ## Layout
@@ -18,7 +20,8 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
 - `src/index.ts` — barrel only, no logic. The deep seam is `src/core/`;
   surfaces stay thin.
 - `src/core/` — `search`, `session`, `types`, `errors`, `markdown`.
-- `src/infra/` — `config`, `debug`, `searxng` (wire client).
+- `src/infra/` — `config`, `debug`, `searxng` (wire client),
+  `fetch-timeout` (shared fetch/abort plumbing).
 - `src/ai/agent.ts` — `--use-ai` loop: `planQuery`, `summarizeSession`,
   `answerQuery`. Prompt and footnote rules live here.
 - `src/diagnostics/doctor.ts` — `--doctor` setup checks.

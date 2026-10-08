@@ -15,8 +15,9 @@ export type {
   DoctorOptions,
   DoctorReport,
 } from "./diagnostics/doctor.js";
-export type { DebugLogger } from "./infra/debug.js";
-export { createDebugLogger, resolveDebug } from "./infra/debug.js";
+export type { DebugLogger } from "./infra/debug-logger.js";
+export { createDebugLogger } from "./infra/debug-logger.js";
+export { resolveDebug } from "./infra/debug-env.js";
 export type { Config, ConfigFile } from "./infra/config.js";
 export { defaultStoreDir, loadConfig, openaiApiKey } from "./infra/config.js";
 export type {

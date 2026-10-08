@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  // pi loads this extension from package.json's "pi.extensions" field, which
+  // fallow's package.json parser does not read — declare it as an entry point
+  // so its transitive imports are not reported as unused.
+  "entry": ["extensions/index.ts"]
+}

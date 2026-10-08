@@ -1,6 +1,7 @@
 import type { SearchOptions, SearchResponse } from "./types.js";
 import { loadConfig } from "../infra/config.js";
-import { createDebugLogger, resolveDebug, type DebugLogger } from "../infra/debug.js";
+import { createDebugLogger, type DebugLogger } from "../infra/debug-logger.js";
+import { resolveDebug } from "../infra/debug-env.js";
 import { normalizeResult, searchRaw, type RawSearchResult } from "../infra/searxng.js";
 import { createSessionId, writeSession } from "./session.js";
 

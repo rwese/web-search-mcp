@@ -5,11 +5,11 @@
  * Locked by wayfinder ticket #8 (CLI surface):
  *   - bare `web-search "<query>"` = search; `--session <id>` = retrieve a
  *     persisted session (mutually exclusive with a query).
-  *   - flags: --categories/--engines (csv), --language, --time-range
-  *     (day|month|year), --safesearch (0|1|2), --page, --json, --help, --version.
-  *   - markdown default shows 15 per page; --page pages stored results on
-  *     --session (and asks SearXNG for the next page on a live search);
-  *     --json emits the full SearchResponse.
+ *   - flags: --categories/--engines (csv), --language, --time-range
+ *     (day|month|year), --safesearch (0|1|2), --page, --json, --help, --version.
+ *   - markdown default shows 15 per page; --page pages stored results on
+ *     --session (and asks SearXNG for the next page on a live search);
+ *     --json emits the full SearchResponse.
  *   - AI is the default for a query when the LLM is configured (model +
  *     API key); --no-ai forces raw results, --use-ai forces the AI answer.
  *   - AI markdown prints the session id plus a `--session <id>` re-read hint
@@ -19,7 +19,7 @@
  *   - exit 0 = ok (even empty results), 1 = runtime error, 2 = usage.
  */
 import { config as loadDotenv } from "dotenv";
-import type { SearchResponse, SessionRecord } from "../../index.js";
+import type { Config, SearchResponse, SessionRecord } from "../../index.js";
 import { loadConfig, readSession, renderMarkdown, search, SearchError } from "../../index.js";
 import type { AiAnswer } from "../../ai/agent.js";
 import { answerQuery, isAiConfigured, modelFromConfig, summarizeSession } from "../../ai/agent.js";
@@ -27,6 +27,7 @@ import { renderDoctorReport, runDoctor } from "../../diagnostics/doctor.js";
 import { parseArgs, USAGE, type ParsedArgs } from "./args.js";
 import { createProgressReporter } from "./progress.js";
 import { version } from "../../version.js";
+import { defaultConfig, xdgConfigPath } from "../../infra/config.js";
 
 loadDotenv({ path: `${process.cwd()}/.env` });
 
@@ -40,68 +41,90 @@ function warnUnresponsive(response: { unresponsiveEngines: [string, string][] })
 	}
 }
 
-async function run(): Promise<number> {
-	let parsed: ParsedArgs;
+/** Report a runtime failure as `error: <message>` and return exit code 1. */
+function failRuntime(err: unknown): number {
+	const message = err instanceof SearchError ? err.message : `unexpected error: ${(err as Error).message}`;
+	process.stderr.write(`error: ${message}\n`);
+	return 1;
+}
+
+function handleHelp(): number {
+	printUsage();
+	return 0;
+}
+
+function handleVersion(): number {
+	process.stdout.write(`web-search ${version}\n`);
+	return 0;
+}
+
+function handleDefaultConfig(): number {
+	process.stdout.write(`${JSON.stringify(defaultConfig(), null, 2)}\n`);
+	process.stderr.write(`Config file: ${xdgConfigPath()}\n`);
+	return 0;
+}
+
+async function handleDoctor(parsed: ParsedArgs): Promise<number> {
+	const report = await runDoctor({ ...(parsed.debug ? { debug: true } : {}) });
+	if (parsed.json) {
+		process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+	} else {
+		process.stdout.write(`${renderDoctorReport(report)}\n`);
+	}
+	return report.ok ? 0 : 1;
+}
+
+/** `--use-ai` short-circuits; otherwise AI is the default when the LLM is configured. */
+async function resolveRunAi(parsed: ParsedArgs): Promise<boolean | "error"> {
+	if (parsed.useAi) return true;
 	try {
-		parsed = parseArgs(process.argv.slice(2));
+		return isAiConfigured(await loadConfig());
 	} catch (err) {
-		process.stderr.write(`error: ${(err as Error).message}\n\n${USAGE}\n`);
-		return 2;
+		failRuntime(err);
+		return "error";
 	}
+}
 
-	if (parsed.help) {
-		printUsage();
-		return 0;
+async function renderSessionSummary(
+	parsed: ParsedArgs,
+	config: Config,
+	record: SessionRecord,
+): Promise<void> {
+	const model = modelFromConfig(config);
+	const progress = createProgressReporter({ json: parsed.json });
+	const followUpSessions: SearchResponse[] = [];
+	const summary = await summarizeSession(model, record, record.query, {
+		maxResults: config.maxResults,
+		maxAgentSearches: config.maxAgentSearches,
+		followUpSessions,
+		onProgress: (event) => progress.report(event),
+	});
+	if (parsed.json) {
+		const payload = {
+			...record,
+			summary,
+			...(followUpSessions.length
+				? { followUpSessions: followUpSessions.map(({ sessionId, query }) => ({ sessionId, query })) }
+				: {}),
+		};
+		process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+	} else {
+		const extra = followUpSessions
+			.map((session) => `\n\n**Session:** ${session.sessionId}\nSearch query: ${JSON.stringify(session.query)}\n\nRaw results: web-search --session ${session.sessionId}`)
+			.join("");
+		process.stdout.write(
+			`**Session:** ${record.sessionId}\n\n${summary}\n\nRaw results: web-search --session ${record.sessionId}${extra}\n`,
+		);
 	}
+}
 
-	if (parsed.version) {
-		process.stdout.write(`web-search ${version}\n`);
-		return 0;
-	}
-
-	if (parsed.doctor) {
-		const report = await runDoctor({ ...(parsed.debug ? { debug: true } : {}) });
-		if (parsed.json) {
-			process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+async function handleSession(parsed: ParsedArgs, sessionId: string): Promise<number> {
+	try {
+		const config = await loadConfig();
+		const record: SessionRecord = await readSession(sessionId, config.storeDir);
+		if (parsed.useAi) {
+			await renderSessionSummary(parsed, config, record);
 		} else {
-			process.stdout.write(`${renderDoctorReport(report)}\n`);
-		}
-		return report.ok ? 0 : 1;
-	}
-
-	if (parsed.sessionId) {
-		try {
-			const config = await loadConfig();
-			const record: SessionRecord = await readSession(parsed.sessionId, config.storeDir);
-			if (parsed.useAi) {
-				const model = modelFromConfig(config);
-				const progress = createProgressReporter({ json: parsed.json });
-				const followUpSessions: SearchResponse[] = [];
-				const summary = await summarizeSession(model, record, record.query, {
-					maxResults: config.maxResults,
-					maxAgentSearches: config.maxAgentSearches,
-					followUpSessions,
-					onProgress: (event) => progress.report(event),
-				});
-				if (parsed.json) {
-					const payload = {
-						...record,
-						summary,
-						...(followUpSessions.length
-							? { followUpSessions: followUpSessions.map(({ sessionId, query }) => ({ sessionId, query })) }
-							: {}),
-					};
-					process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
-				} else {
-					const extra = followUpSessions
-						.map((session) => `\n\n**Session:** ${session.sessionId}\nSearch query: ${JSON.stringify(session.query)}\n\nRaw results: web-search --session ${session.sessionId}`)
-						.join("");
-					process.stdout.write(
-						`**Session:** ${record.sessionId}\n\n${summary}\n\nRaw results: web-search --session ${record.sessionId}${extra}\n`,
-					);
-				}
-				return 0;
-			}
 			const response: SearchResponse = { ...record };
 			if (parsed.json) {
 				process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
@@ -110,59 +133,37 @@ async function run(): Promise<number> {
 					`${renderMarkdown(response, config.maxResults, parsed.options.pageNo ?? 1)}\n`,
 				);
 			}
-			return 0;
-		} catch (err) {
-			const message =
-				err instanceof SearchError ? err.message : `unexpected error: ${(err as Error).message}`;
-			process.stderr.write(`error: ${message}\n`);
-			return 1;
 		}
+		return 0;
+	} catch (err) {
+		return failRuntime(err);
 	}
+}
 
-	// Query path: explicit --use-ai forces the AI answer; otherwise the AI
-	// answer is the default when the LLM is configured (model + API key)
-	// and --no-ai opts out to raw results. --session stays raw (see above).
-	if (!parsed.sessionId && !parsed.noAi) {
-		let runAi = parsed.useAi;
-		if (!runAi) {
-			try {
-				runAi = isAiConfigured(await loadConfig());
-			} catch (err) {
-				const message =
-					err instanceof SearchError ? err.message : `unexpected error: ${(err as Error).message}`;
-				process.stderr.write(`error: ${message}\n`);
-				return 1;
-			}
+async function handleAiQuery(parsed: ParsedArgs): Promise<number> {
+	try {
+		const hasOverrides = Object.keys(parsed.options).length > 0;
+		const progress = createProgressReporter({ json: parsed.json });
+		const answer: AiAnswer = await answerQuery(parsed.query as string, {
+			...(hasOverrides ? { overrides: parsed.options } : {}),
+			...(parsed.debug ? { debug: true } : {}),
+			onProgress: (event) => progress.report(event),
+		});
+		warnUnresponsive(answer);
+		if (parsed.json) {
+			process.stdout.write(`${JSON.stringify(answer, null, 2)}\n`);
+		} else {
+			process.stdout.write(
+				`${answer.sessions.map((session) => `**Session:** ${session.sessionId}\nSearch query: ${JSON.stringify(session.query)}`).join("\n\n")}\n\n${answer.summary}\n\n${answer.sessions.map((session) => `Raw results: web-search --session ${session.sessionId}`).join("\n")}\n`,
+			);
 		}
-		if (runAi) {
-			try {
-				const hasOverrides = Object.keys(parsed.options).length > 0;
-				const progress = createProgressReporter({ json: parsed.json });
-				const answer: AiAnswer = await answerQuery(parsed.query as string, {
-					...(hasOverrides ? { overrides: parsed.options } : {}),
-					...(parsed.debug ? { debug: true } : {}),
-					onProgress: (event) => progress.report(event),
-				});
-				for (const [engine, reason] of answer.unresponsiveEngines) {
-					process.stderr.write(`warning: engine ${engine} unresponsive (${reason})\n`);
-				}
-				if (parsed.json) {
-					process.stdout.write(`${JSON.stringify(answer, null, 2)}\n`);
-				} else {
-					process.stdout.write(
-						`${answer.sessions.map((session) => `**Session:** ${session.sessionId}\nSearch query: ${JSON.stringify(session.query)}`).join("\n\n")}\n\n${answer.summary}\n\n${answer.sessions.map((session) => `Raw results: web-search --session ${session.sessionId}`).join("\n")}\n`,
-					);
-				}
-				return 0;
-			} catch (err) {
-				const message =
-					err instanceof SearchError ? err.message : `unexpected error: ${(err as Error).message}`;
-				process.stderr.write(`error: ${message}\n`);
-				return 1;
-			}
-		}
+		return 0;
+	} catch (err) {
+		return failRuntime(err);
 	}
+}
 
+async function handleRawSearch(parsed: ParsedArgs): Promise<number> {
 	try {
 		const query = parsed.query as string;
 		const progress = createProgressReporter({ json: parsed.json });
@@ -188,10 +189,42 @@ async function run(): Promise<number> {
 		}
 		return 0;
 	} catch (err) {
-		const message = err instanceof SearchError ? err.message : `unexpected error: ${(err as Error).message}`;
-		process.stderr.write(`error: ${message}\n`);
-		return 1;
+		return failRuntime(err);
 	}
+}
+
+/**
+ * Query path: explicit --use-ai forces the AI answer; otherwise the AI answer
+ * is the default when the LLM is configured (model + API key) and --no-ai opts
+ * out to raw results. --session stays raw (handled above).
+ */
+async function handleQuery(parsed: ParsedArgs): Promise<number> {
+	if (!parsed.sessionId && !parsed.noAi) {
+		const runAi = await resolveRunAi(parsed);
+		if (runAi === "error") return 1;
+		if (runAi) return handleAiQuery(parsed);
+	}
+	return handleRawSearch(parsed);
+}
+
+async function run(): Promise<number> {
+	let parsed: ParsedArgs;
+	try {
+		parsed = parseArgs(process.argv.slice(2));
+	} catch (err) {
+		process.stderr.write(`error: ${(err as Error).message}\n\n${USAGE}\n`);
+		return 2;
+	}
+
+	if (parsed.help) return handleHelp();
+	if (parsed.version) return handleVersion();
+	if (parsed.defaultConfig) return handleDefaultConfig();
+	if (parsed.doctor) return await handleDoctor(parsed);
+
+	const sessionId = parsed.sessionId;
+	if (sessionId) return await handleSession(parsed, sessionId);
+
+	return await handleQuery(parsed);
 }
 
 const code = await run();

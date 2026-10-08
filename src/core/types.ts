@@ -5,7 +5,7 @@
  * consumes. Types here are the normalized contract derived from the SearXNG
  * JSON API (see research/searxng-api.md) and locked by the wayfinder map.
  */
-import type { DebugLogger } from "../infra/debug.js";
+import type { DebugLogger } from "../infra/debug-logger.js";
 
 /** One normalized search hit. */
 export type SearchResult = {

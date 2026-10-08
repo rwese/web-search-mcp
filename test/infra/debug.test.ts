@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-	createDebugLogger,
-	debugEnabledFromEnv,
-	resolveDebug,
-	resolveEnvDebug,
-	type DebugLogger,
-} from "../../src/infra/debug.js";
+import { createDebugLogger, type DebugLogger } from "../../src/infra/debug-logger.js";
+import { debugEnabledFromEnv, resolveDebug, resolveEnvDebug } from "../../src/infra/debug-env.js";
 import { countToolCalls } from "../../src/ai/agent.js";
 
 describe("resolveDebug", () => {

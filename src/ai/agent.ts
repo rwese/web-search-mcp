@@ -15,7 +15,8 @@ import type { BaseMessage, MessageContent } from "@langchain/core/messages";
 import { z } from "zod";
 import type { Config } from "../infra/config.js";
 import { DEFAULT_MAX_AGENT_SEARCHES, DEFAULT_MAX_RESULTS, openaiApiKey } from "../infra/config.js";
-import { createDebugLogger, resolveDebug, toLogger, type DebugLogger } from "../infra/debug.js";
+import { createDebugLogger, toLogger, type DebugLogger } from "../infra/debug-logger.js";
+import { resolveDebug } from "../infra/debug-env.js";
 import {
 	footnoteFixMessage,
 	plannerPrompt,
@@ -36,7 +37,7 @@ export type SessionLike = {
 };
 
 /** Query decomposition and shared filters. Empty filter lists = no restriction. */
-export const SearchPlanSchema = z.object({
+const SearchPlanSchema = z.object({
 	queries: z.array(z.string().trim().min(1)).min(1).max(5)
 		.refine((queries) => new Set(queries.map((query) => query.toLowerCase())).size === queries.length,
 			"search queries must be unique"),
@@ -235,7 +236,7 @@ export function buildSessionOverview(session: SessionLike, maxResults = DEFAULT_
 }
 
 /** Plain-text rendering of a model message's content. */
-export function contentToText(content: MessageContent | unknown): string {
+function contentToText(content: MessageContent | unknown): string {
 	if (typeof content === "string") return content;
 	if (Array.isArray(content)) {
 		return content
@@ -252,7 +253,7 @@ export function contentToText(content: MessageContent | unknown): string {
 }
 
 /** Text of the last AI message in an agent run. */
-export function lastAiText(messages: readonly BaseMessage[]): string {
+function lastAiText(messages: readonly BaseMessage[]): string {
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		if (messages[i].getType() === "ai") {
 			return contentToText(messages[i].content);

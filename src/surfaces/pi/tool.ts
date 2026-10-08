@@ -1,3 +1,4 @@
+import { Text } from "@mariozechner/pi-tui";
 import { Type, type Static } from "@sinclair/typebox";
 import { renderMarkdown, search } from "../../index.js";
 import { DEFAULT_MAX_RESULTS } from "../../infra/config.js";
@@ -80,4 +81,35 @@ export function collapsedText(details: { resultCount?: number; query?: string; s
 		`→ Found ${count} result${count !== 1 ? "s" : ""} for "${query}"` +
 		(sessionId ? ` (session ${sessionId})` : "")
 	);
+}
+
+/** The slice of the pi theme the pi result renderers depend on. */
+export interface RenderTheme {
+	fg(name: "toolOutput" | "muted", text: string): string;
+}
+
+/** Result shape the pi render hook receives: text content plus search details. */
+export type RenderableSearchResult = {
+	content: Array<{ type: string; text?: string }>;
+	details?: { resultCount?: number; query?: string; sessionId?: string; error?: string };
+};
+
+/** Render expanded output: one themed line per markdown line, after a leading blank line. */
+export function renderExpandedResult(text: string, theme: RenderTheme): Text {
+	const output = text
+		.split("\n")
+		.map((line) => theme.fg("toolOutput", line))
+		.join("\n");
+	return new Text(`\n${output}`, 0, 0);
+}
+
+/** Render a tool result: expanded markdown, or the collapsed one-liner. */
+export function renderSearchResult(
+	result: RenderableSearchResult,
+	{ expanded }: { expanded: boolean },
+	theme: RenderTheme,
+): Text {
+	const text = result.content.find((c) => c.type === "text")?.text ?? "";
+	if (expanded) return renderExpandedResult(text, theme);
+	return new Text(theme.fg("muted", collapsedText(result.details ?? {})), 0, 0);
 }

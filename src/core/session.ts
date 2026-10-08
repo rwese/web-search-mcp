@@ -20,7 +20,7 @@ export function slugify(value: string, maxLength: number): string {
 }
 
 /** Random hex string, used for session and result ids. */
-export function hexId(length: number): string {
+function hexId(length: number): string {
   return randomBytes(Math.ceil(length / 2))
     .toString("hex")
     .slice(0, length);
@@ -37,7 +37,7 @@ function resultFileName(index: number, result: SearchResult): string {
   return `${index.toString().padStart(3, "0")}-${id}-${slug}.json`;
 }
 
-export type StoredResult = SearchResult & { rank: number };
+type StoredResult = SearchResult & { rank: number };
 
 /** Write one search session to disk. Creates <storeRoot>/<sessionId>/. */
 export async function writeSession(

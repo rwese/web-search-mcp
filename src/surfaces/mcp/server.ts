@@ -3,8 +3,8 @@ import { z } from "zod";
 import { renderMarkdown, search } from "../../index.js";
 import { DEFAULT_MAX_RESULTS } from "../../infra/config.js";
 
-export const MAX_RESULTS_DEFAULT = DEFAULT_MAX_RESULTS;
-export const MAX_RESULTS_LIMIT = 50;
+const MAX_RESULTS_DEFAULT = DEFAULT_MAX_RESULTS;
+const MAX_RESULTS_LIMIT = 50;
 
 /** Register the `search` tool — the only tool in the first build-out. */
 export function registerTools(server: McpServer): void {

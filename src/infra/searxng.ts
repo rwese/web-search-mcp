@@ -1,6 +1,7 @@
 import type { SearchOptions, SearchResult } from "../core/types.js";
 import { SearxngError, SearchTimeout, SearchUnavailable } from "../core/errors.js";
-import { toLogger } from "./debug.js";
+import { toLogger } from "./debug-logger.js";
+import { fetchWithTimeout, type FetchFailureKind } from "./fetch-timeout.js";
 
 /** Strip logger instances out of options before debug logging. */
 function redactOptions(options: SearchOptions): Record<string, unknown> {
@@ -89,12 +90,23 @@ async function parseError(response: Response): Promise<string> {
   }
 }
 
+/** SearXNG fetch-error mapper: timeout -> SearchTimeout, else SearchUnavailable. */
+function searxngErrorMapper(
+  baseUrl: string,
+  timeoutMessage: string,
+): (error: Error, kind: FetchFailureKind) => Error {
+  return (error, kind) =>
+    kind === "timeout"
+      ? new SearchTimeout(timeoutMessage)
+      : new SearchUnavailable(`Failed to reach SearXNG at ${baseUrl}: ${error.message}`);
+}
+
 /**
  * Query the SearXNG JSON API and return the raw response.
  * Engine failures are non-fatal on SearXNG's side; they surface in
  * `unresponsive_engines` and are passed through to the caller as data.
  */
-export async function searchRaw(
+export function searchRaw(
   baseUrl: string,
   query: string,
   options: SearchOptions,
@@ -104,42 +116,35 @@ export async function searchRaw(
   url.search = buildQueryParams(query, options).toString();
   const debug = toLogger(options.debug);
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   debug.log('searxng', `GET ${url.toString()}`, { query, options: redactOptions(options), timeoutMs });
   const startedAt = Date.now();
-  try {
-    let response: Response;
-    try {
-      response = await fetch(url, { signal: controller.signal });
-    } catch (err) {
-      if ((err as Error).name === "AbortError") {
-        throw new SearchTimeout(`Search timed out after ${timeoutMs}ms`);
+  return fetchWithTimeout(
+    url,
+    {
+      timeoutMs,
+      mapError: searxngErrorMapper(baseUrl, `Search timed out after ${timeoutMs}ms`),
+    },
+    async (response) => {
+      if (!response.ok) {
+        const message = await parseError(response);
+        debug.log('searxng', `HTTP ${response.status} in ${Date.now() - startedAt}ms`, { message });
+        if (response.status >= 500) {
+          throw new SearchUnavailable(`SearXNG returned HTTP ${response.status}: ${message}`);
+        }
+        throw new SearxngError(message, response.status);
       }
-      throw new SearchUnavailable(`Failed to reach SearXNG at ${baseUrl}: ${(err as Error).message}`);
-    }
 
-    if (!response.ok) {
-      const message = await parseError(response);
-      debug.log('searxng', `HTTP ${response.status} in ${Date.now() - startedAt}ms`, { message });
-      if (response.status >= 500) {
-        throw new SearchUnavailable(`SearXNG returned HTTP ${response.status}: ${message}`);
+      const raw = (await response.json()) as RawSearchResponse;
+      if (!raw || !Array.isArray(raw.results)) {
+        throw new SearxngError("SearXNG returned an unexpected response shape", response.status);
       }
-      throw new SearxngError(message, response.status);
-    }
-
-    const raw = (await response.json()) as RawSearchResponse;
-    if (!raw || !Array.isArray(raw.results)) {
-      throw new SearxngError("SearXNG returned an unexpected response shape", response.status);
-    }
-    debug.log('searxng', `OK ${raw.results.length} result(s) in ${Date.now() - startedAt}ms`, {
-      suggestions: raw.suggestions ?? [],
-      unresponsiveEngines: raw.unresponsive_engines ?? [],
-    });
-    return raw;
-  } finally {
-    clearTimeout(timer);
-  }
+      debug.log('searxng', `OK ${raw.results.length} result(s) in ${Date.now() - startedAt}ms`, {
+        suggestions: raw.suggestions ?? [],
+        unresponsiveEngines: raw.unresponsive_engines ?? [],
+      });
+      return raw;
+    },
+  );
 }
 
 /** One engine entry from the SearXNG /config endpoint. */
@@ -161,7 +166,7 @@ export type InstanceConfig = {
  * Fetch the SearXNG instance /config (no auth needed). Used to constrain the
  * AI planner's categories/engines picks to what this instance actually has.
  */
-export async function fetchInstanceConfig(
+export function fetchInstanceConfig(
   baseUrl: string,
   timeoutMs: number,
   options: Pick<SearchOptions, 'debug'> = {},
@@ -169,33 +174,27 @@ export async function fetchInstanceConfig(
   const url = new URL("/config", baseUrl.replace(/\/+$/, ""));
   const debug = toLogger(options.debug);
   debug.log('searxng', `GET ${url.toString()}`, { timeoutMs });
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    let response: Response;
-    try {
-      response = await fetch(url, { signal: controller.signal });
-    } catch (err) {
-      if ((err as Error).name === "AbortError") {
-        throw new SearchTimeout(`Instance config timed out after ${timeoutMs}ms`);
+  return fetchWithTimeout(
+    url,
+    {
+      timeoutMs,
+      mapError: searxngErrorMapper(baseUrl, `Instance config timed out after ${timeoutMs}ms`),
+    },
+    async (response) => {
+      if (!response.ok) {
+        throw new SearxngError(
+          `SearXNG /config returned HTTP ${response.status}`,
+          response.status,
+        );
       }
-      throw new SearchUnavailable(`Failed to reach SearXNG at ${baseUrl}: ${(err as Error).message}`);
-    }
-    if (!response.ok) {
-      throw new SearxngError(
-        `SearXNG /config returned HTTP ${response.status}`,
-        response.status,
-      );
-    }
-    const config = (await response.json()) as InstanceConfig;
-    debug.log('searxng', `/config OK`, {
-      categories: instanceCategories(config).length,
-      engines: enabledEngineNames(config).length,
-    });
-    return config;
-  } finally {
-    clearTimeout(timer);
-  }
+      const config = (await response.json()) as InstanceConfig;
+      debug.log('searxng', `/config OK`, {
+        categories: instanceCategories(config).length,
+        engines: enabledEngineNames(config).length,
+      });
+      return config;
+    },
+  );
 }
 
 /** Names of enabled engines from an instance /config. */

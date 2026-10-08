@@ -1,307 +1,64 @@
 # @rwese/web-search-mcp
 
-Web search powered by your own [SearXNG](https://docs.searxng.org/) instance.
-Search from the terminal, from an AI agent (MCP), or from pi — every search is
-saved as a reusable **session** on disk.
+Web search for your terminal and AI agents, powered by your own
+[SearXNG](https://docs.searxng.org/) instance.
 
-> **New here?** No install needed — run it straight from npm with
-> `npx` (see below), set `SEARXNG_URL`, and search. The
-> [CLI guide](#cli--usage) covers everything, with example output for every
-> command.
+## Highlights
 
-Install from the npm registry (bins land on your `PATH`):
+- **CLI, MCP, and pi** — use the same search backend across your tools.
+- **Reusable sessions** — every search is saved locally so you can revisit results.
+- **Optional AI answers** — turn searches into answers with source citations using
+  an OpenAI-compatible model.
+- **Flexible output** — readable Markdown or structured JSON, with filters for
+  engines, categories, language, and time range.
+
+## Quickstart
+
+You need **Node.js 20+** and a **SearXNG instance with its JSON API enabled**.
+Replace the example URL with your instance:
 
 ```sh
 npm install -g @rwese/web-search-mcp
-export SEARXNG_URL=https://search.example.com   # required
+export SEARXNG_URL=https://search.example.com
+
 web-search --doctor
-```
-
-Or run without installing (subsequent runs reuse the npx cache):
-
-```sh
-export SEARXNG_URL=https://search.example.com   # required
-npx -y -p @rwese/web-search-mcp web-search --doctor
-```
-
-Output when your setup is healthy:
-
-```
-web-search doctor
-✓ config: SEARXNG_URL=https://search.wze.nope.at timeout=10000ms store=/home/you/.local/share/web-search/sessions
-✓ store-dir: /home/you/.local/share/web-search/sessions writable
-✓ searxng: https://search.wze.nope.at reachable (32 categories, 86 enabled engines)
-✓ engines: 86 enabled: wikipedia, arxiv, github, stackoverflow, youtube, ...
-✓ search: probe query "test" returned 36 result(s) (3 unresponsive engine(s))
-✓ llm: not configured (skipped)
-6/6 checks passed
-```
-
-> The LLM check only matters for `--use-ai` (see [AI answers](#ai-answers)).
-> Without LLM config it reports "skipped" and still passes.
->
-> Prefer a local checkout? `git clone` the repo, then `pnpm install` +
-> `pnpm build` (or just `npx web-search …` inside the checkout — npx
-> resolves the local bins with no install step).
-
-## CLI — usage
-
-After `npm install -g @rwese/web-search-mcp` the `web-search` bin is on your
-`PATH`. Without the global install, prefix every command with
-`npx -y -p @rwese/web-search-mcp` (fetches the package on first use;
-subsequent runs reuse the npx cache):
-
-```sh
-export SEARXNG_URL=https://search.example.com   # required, once per shell
-web-search "<query>" [flags]
-```
-
-Bare bin name below stands for that `npx … web-search` prefix:
-
-```
-web-search "<query>" [flags]          search (AI answer when the LLM is configured, raw with --no-ai)
-web-search --session <id> [--page <n>] [--json] [--use-ai]  re-read a saved session (raw unless --use-ai)
-web-search --doctor [--json]          validate your setup
-web-search --help                     show help (includes the version)
-web-search --version                  print the version and exit
-```
-
-| Flag                | Meaning                                                        |
-| ------------------- | -------------------------------------------------------------- |
-| `--categories <csv>`| restrict to categories, e.g. `--categories general,news`       |
-| `--engines <csv>`   | restrict to engines, e.g. `--engines wikipedia,arxiv`          |
-| `--language <code>` | e.g. `--language en`, `--language de`                          |
-| `--time-range <x>`  | `day` \| `month` \| `year` (e.g. `day` for news from the last 24h) |
-| `--safesearch <n>`  | `0` off, `1` moderate, `2` strict                              |
-| `--page <n>`        | result page (search: next SearXNG page; `--session`: page of stored results) |
-| `--session <id>`    | show a saved session instead of searching (no query allowed)   |
-| `--use-ai`          | answer with the AI loop (default when the LLM is configured)   |
-| `--no-ai`           | list raw results even when the LLM is configured               |
-| `--debug`           | verbose logging to stderr (never pollutes stdout/JSON)         |
-| `--doctor`          | validate setup (takes no query, no other flags except `--json`)|
-| `--json`            | full structured output (default is readable markdown)          |
-| `--help`            | show help (includes the version)                               |
-| `--version`         | print the version and exit                                     |
-
-Exit codes: `0` success (even with zero results), `1` runtime error,
-`2` usage error (e.g. query combined with `--session`).
-
-### Search
-
-```sh
 web-search "what is kubernetes"
 ```
 
-Output is readable markdown showing 15 hits per page (the full result set is
-always saved — see [sessions](#sessions); page past it with
-`--session <id> --page <n>`):
-
-```markdown
-**Session:** cc6a54d5-what-is-kubernetes
-## Search results for "what is kubernetes" (27)
-1. [Overview - Kubernetes](https://kubernetes.io/docs/concepts/overview/)
-   Kubernetes is a portable, extensible, open source platform for managing containerized workloads and services ...
-   *Engines: google cse, braveapi, exaapi · Category: general*
-2. [What is Kubernetes? - Red Hat](https://www.redhat.com/en/topics/containers/what-is-kubernetes)
-   The core concepts of Kubernetes center around clusters, nodes, and pods working together ...
-   *Engines: google cse, braveapi, exaapi · Category: general*
-3. [Kubernetes - Wikipedia](https://en.wikipedia.org/wiki/Kubernetes)
-   Kubernetes, also known as K8s, is an open-source container orchestration system for automating software deployment, scaling, and management. ...
-   *Engines: google cse, braveapi, exaapi · Category: general*
-```
-
-Refine with filters — all flags combine freely:
+Or try it without a global install:
 
 ```sh
+SEARXNG_URL=https://search.example.com npx -y -p @rwese/web-search-mcp web-search "what is kubernetes"
+```
+
+An LLM is optional. With only SearXNG configured, searches return a list of results.
+
+## CLI
+
+```sh
+# Filter a search
 web-search "fusion breakthrough" --categories news --time-range day --language en
-web-search "kubernetes ingress" --engines stackoverflow,github --page 2
+
+# Get raw results as JSON
+web-search "kubernetes ingress" --no-ai --json
+
+# Revisit a saved search using the session ID printed in the output
+web-search --session <id>
+web-search --session <id> --page 2
+
+# See all options
+web-search --help
 ```
 
-> A query and `--session` are mutually exclusive. `--doctor` takes neither.
+The full result set is saved even when the displayed output is limited. Sessions
+are shared by the CLI, MCP, and pi and stored in
+`$XDG_DATA_HOME/web-search/sessions/` (default: `~/.local/share/web-search/sessions/`).
 
-### JSON output
+## Use with AI agents
 
-Add `--json` to any search for the full structured response — every result
-with `title`, `url`, `snippet`, `publishedDate`, `score`, `engines`,
-`category`, plus `suggestions`, `answers`, `corrections`, `infoboxes`, and
-`unresponsiveEngines`:
+### MCP
 
-```sh
-web-search "what is kubernetes" --json
-```
-
-```json
-{
-  "query": "what is kubernetes",
-  "sessionId": "5416a500-what-is-kubernetes",
-  "results": [
-    {
-      "title": "Overview - Kubernetes",
-      "url": "https://kubernetes.io/docs/concepts/overview/",
-      "snippet": "Kubernetes is a portable, extensible, open source platform for managing containerized workloads and services ...",
-      "publishedDate": "2026-05-30T00:00:00+00:00",
-      "score": 9,
-      "engines": ["google cse", "braveapi", "exaapi"],
-      "category": "general"
-    },
-    {
-      "title": "Kubernetes",
-      "url": "https://kubernetes.io/",
-      "snippet": "Kubernetes, also known as K8s, is an open source system for automating deployment, scaling, and management of containerized applications. ...",
-      "publishedDate": null,
-      "score": 2.7,
-      "engines": ["google cse", "braveapi", "exaapi"],
-      "category": "general"
-    }
-  ],
-  "suggestions": [],
-  "answers": [],
-  "corrections": [],
-  "infoboxes": [],
-  "unresponsiveEngines": [
-    ["brave", "Suspended: too many requests"],
-    ["duckduckgo", "CAPTCHA"]
-  ]
-}
-```
-
-> `unresponsiveEngines` are normal: some backends fail non-fatally on any
-> given search. They print as `warning:` lines on stderr and never pollute
-> stdout, so `--json` stays machine-readable.
-
-### Sessions
-
-Every search persists an immutable session on disk and prints its id in the
-`**Session:**` line. Re-read it any time — from any surface (CLI, MCP, pi):
-
-```sh
-NPX="web-search"
-$NPX --session cc6a54d5-what-is-kubernetes
-$NPX --session cc6a54d5-what-is-kubernetes --page 2
-$NPX --session cc6a54d5-what-is-kubernetes --json
-```
-
-When a session's results span more than one page (page size = `maxResults`,
-15 by default), the markdown footer reads `Showing X of Y page Z, to get
-further results: web-search --session <id> --page <Z+1>`. A live search's
-`--page <n>` means something else — it asks SearXNG for the next result page
-(a new session), whereas paging a `--session` re-read walks the
-already-stored results.
-
-Sessions live under `$XDG_DATA_HOME/web-search/sessions/` (fallback
-`~/.local/share/web-search/sessions/`) in folders named
-`<8 hex>-<query slug>`, e.g. `cc6a54d5-what-is-kubernetes`.
-
-### AI answers
-
-A plain `web-search "<query>"` answers via the plan → search → aggregate → synthesize
-loop whenever the LLM is configured (model + API key). The planner breaks the
-request into 1–5 focused search queries and picks shared categories/engines
-from your instance's live config. Each query runs in order and saves its own
-session. The top 15 results per session are aggregated into a Markdown prompt,
-under search-session and search-query headings, then synthesized into one
-answer with globally numbered footnote citations. The summarizer may run
-additional targeted searches through its `search` tool (budget: 10 per answer,
-configurable); the follow-up sessions and their results extend the global
-numbering.
-
-The markdown output prints every `**Session:**` id and search query plus a
-`Raw results: web-search --session <id>` hint so the raw hits stay reviewable.
-`--json` carries `sessions` (query/id pairs), `plan` (including `queries`), and
-`summary`; `sessionId` remains the first search's id for existing consumers.
-
-Setup (needs an OpenAI-compatible endpoint in addition to SearXNG):
-
-```sh
-export OPENAI_BASE_URL=https://litellm.void.cold.at/v1
-export OPENAI_MODEL=deepseek-v4-flash
-export OPENAI_API_KEY=<key>   # env wins; or openai.apiKey in the XDG config file (mode 0600)
-web-search "latest pi 5 news" --use-ai
-```
-
-```
-**Session:** 9be21cc4-latest-pi-5-news
-Search query: "latest pi 5 news"
-
-The Raspberry Pi 5 ... [^1] ... [^2]
-
-Sources
-[^1]: [Title one](https://example.com/one)
-[^2]: [Title two](https://example.com/two)
-
-Raw results: web-search --session 9be21cc4-latest-pi-5-news
-```
-
-Pass `--no-ai` for the raw top-15 result list instead, or `--use-ai` to
-force the AI answer explicitly. `--session <id>` stays raw unless `--use-ai`
-is passed. Explicit flags always override the AI plan, e.g.
-`--use-ai --language de --engines wikipedia` forces those choices.
-
-### Debugging
-
-Interactive runs (TTY, human-readable output) print one progress line per
-step to stderr — planning, each search, synthesizing — so the long `--use-ai`
-loop is never silent. Piped stderr and `--json` stay silent, so scripts and
-`jq` keep working.
-
-`--debug` (or `WEB_SEARCH_DEBUG=1`) prints verbose diagnostics — request URLs
-and timing, session persistence, and with `--use-ai` the plan decision, tool
-calls, and model-call counts. It always goes to stderr, so piping stdout to
-`jq` keeps working.
-
-## Configuration
-
-Highest precedence first:
-
-1. Environment variables / CLI flags (`SEARXNG_URL`, `SEARXNG_TIMEOUT_MS`, `OPENAI_*`)
-2. XDG config file `$XDG_CONFIG_HOME/web-search/config.json`
-   (fallback `~/.config/web-search/config.json`)
-3. Built-in defaults
-
-`$PWD/.env` (gitignored, copy from `.env.example`) is loaded by the CLI/MCP
-entrypoints before startup; the core itself never loads dotenv.
-
-| Variable             | Required       | Default   | Purpose                                             |
-| -------------------- | -------------- | --------- | --------------------------------------------------- |
-| `SEARXNG_URL`        | yes            | —         | SearXNG instance base URL; fails fast without it    |
-| `SEARXNG_TIMEOUT_MS` | no             | `10000`   | per-request timeout in ms                           |
-| `WEB_SEARCH_DEBUG`   | no             | `0`       | verbose stderr logging; `1` to enable               |
-| `WEB_SEARCH_RECURSION_LIMIT` | no       | `50`      | LangChain graph recursion cap for the `--use-ai` summarizer (default `maxModelCalls * 4 + 10`); raise if you hit "Recursion limit ... reached" |
-| `WEB_SEARCH_MAX_RESULTS`     | no       | `15`      | display cap for markdown summaries and session overviews (never truncates the persisted session) |
-| `WEB_SEARCH_MAX_AGENT_SEARCHES` | no    | `10`      | follow-up `search` tool budget per `--use-ai` answer; when exhausted the agent gets `search volume exhausted` (HTTP 429) |
-| `OPENAI_BASE_URL`    | for `--use-ai` | —         | OpenAI-compatible endpoint                          |
-| `OPENAI_MODEL`       | for `--use-ai` | —         | model name (e.g. `deepseek-v4-flash`)               |
-| `OPENAI_API_KEY`     | for `--use-ai` | —         | key; env wins, `openai.apiKey` in the XDG config file is the fallback (mode 0600, single line) |
-| `PORT`               | no             | `3000`    | MCP `--http` port when no port arg is given         |
-
-XDG config file example:
-
-```json
-{
-  "searxngUrl": "https://search.example.com",
-  "timeoutMs": 10000,
-  "storeDir": "/custom/path/to/sessions",
-  "debug": false,
-  "maxResults": 15,
-  "maxAgentSearches": 10,
-  "openai": {
-    "baseUrl": "https://litellm.void.cold.at/v1",
-    "model": "deepseek-v4-flash",
-    "apiKey": "sk-..."
-  }
-}
-```
-
-Any standard SearXNG instance works — no instance-side setup needed. The core
-uses the JSON API plus `/config` (the `--use-ai` planner constrains its
-category/engine picks to what `/config` actually offers).
-
-## Agent surfaces (MCP + pi)
-
-All surfaces share the core and the session store, so sessions are
-interchangeable. Pick whichever your harness speaks.
-
-**1. MCP via stdio** (Claude Code, opencode, pi):
+For clients that use an `mcpServers` configuration, add:
 
 ```json
 {
@@ -310,56 +67,64 @@ interchangeable. Pick whichever your harness speaks.
       "command": "npx",
       "args": ["-y", "-p", "@rwese/web-search-mcp", "web-search-mcp"],
       "env": {
-        "SEARXNG_URL": "https://search.example.com",
-        "OPENAI_API_KEY": "sk-..."
+        "SEARXNG_URL": "https://search.example.com"
       }
     }
   }
 }
 ```
 
-**2. MCP via streamable HTTP** (shared server for multiple agents):
+This exposes a `search` tool with query and filter options. For a shared
+Streamable HTTP server, run `web-search-mcp --http 3000` after installing the
+package and setting `SEARXNG_URL`. The endpoint is `http://localhost:3000/mcp`.
+
+### pi
 
 ```sh
-web-search-mcp --http 3000   # or PORT=3000 ... web-search-mcp --http
-# endpoint: POST/GET/DELETE http://localhost:3000/mcp
+pi install npm:@rwese/web-search-mcp
 ```
 
-```json
-{
-  "mcpServers": {
-    "web-search": { "type": "streamable-http", "url": "http://localhost:3000/mcp" }
-  }
-}
-```
+Set `SEARXNG_URL` in pi's environment, then use the `search` tool.
 
-**3. pi extension** (`package.json` already declares `./extensions` via the
-`"pi"` key):
+## AI answers
+
+Configure an OpenAI-compatible endpoint to get synthesized answers with source
+citations from the CLI:
 
 ```sh
-pi install npm:@rwese/web-search-mcp   # then use the search tool
+export OPENAI_BASE_URL=https://api.openai.com/v1
+export OPENAI_MODEL=your-model-name
+export OPENAI_API_KEY=your-api-key
+
+web-search "what changed in the latest Kubernetes release?" --use-ai
 ```
 
-Tool contract (`search` — the only tool): required `query: string`; optional
-`categories: string[]`, `engines: string[]` (default: all available engines),
-`language: string`, `timeRange: day|month|year`, `safeSearch: 0|1|2`,
-`pageNo: number`, `maxResults: number` (default 15, max 50). Returns lean
-markdown: a `Session:` id line, then `title` / `url` / `snippet` / `engine` /
-`category` per result. Agent guidance:
+Once a model and API key are configured, new CLI searches use AI by default.
+Pass `--no-ai` for raw results. Saved sessions stay raw unless you pass
+`--use-ai`, for example `web-search --session <id> --use-ai`.
 
-- `maxResults` only trims the rendered summary — the full result set stays in
-  the persisted session on disk.
-- Re-read full detail via the CLI (`--session <id>`) or the session store;
-  there is no `search_details` MCP tool yet (deferred until the MCP server is
-  in active use).
-- `unresponsiveEngines` are data, not errors — some backends failed
-  non-fatally.
-- For AI-answer behavior from an agent, run the CLI rather than reimplementing
-  the loop; explicit flags always override the AI plan. When the LLM is
-  configured the CLI answers with AI by default — pass `--no-ai` for raw
-  results.
+## Configuration and troubleshooting
+
+`SEARXNG_URL` is the only required setting. The CLI and MCP server also load
+`.env` from the current directory; see [.env.example](.env.example) for optional
+settings. You can use `~/.config/web-search/config.json` (or
+`$XDG_CONFIG_HOME/web-search/config.json`) for persistent configuration.
+Precedence is **CLI flags > environment > config file > defaults**.
+
+Generate a starter config (fill in `searxngUrl` before searching):
+
+```sh
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/web-search"
+web-search --default-config > "${XDG_CONFIG_HOME:-$HOME/.config}/web-search/config.json"
+```
+
+The command prints default JSON to stdout and the expected config file path to
+stderr. Optional AI fields start empty.
+
+Run `web-search --doctor` to check your setup, or add `--debug` to a search for
+diagnostics on stderr.
 
 ## Development
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for build commands, architecture, the
-`--use-ai` / `--doctor` internals, and contributor pointers.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for build commands, architecture, and
+contributor guidance.
