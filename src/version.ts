@@ -1,2 +1,2 @@
 /** Package version, mirrored from package.json (kept in sync by hand). */
-export const version = "0.6.0";
+export const version = "0.7.0";
