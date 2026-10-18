@@ -1,15 +1,15 @@
 import type { SafeSearch, SearchOptions, TimeRange } from "../../core/types.js";
 import { version } from "../../version.js";
 
-export const USAGE = `web-search ${version} — SearXNG-backed web search
+export const USAGE = `wze-websearch ${version} — SearXNG-backed web search
 
 Usage:
-  web-search "<query>" [flags]
-  web-search --session <id> [--json]
-  web-search --doctor [--json]
-  web-search --default-config
-  web-search --help
-  web-search --version
+  wze-websearch "<query>" [flags]
+  wze-websearch --session <id> [--json]
+  wze-websearch --doctor [--json]
+  wze-websearch --default-config
+  wze-websearch --help
+  wze-websearch --version
 
 Flags:
   --categories <csv>   restrict to categories (e.g. general,news)

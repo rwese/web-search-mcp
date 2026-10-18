@@ -9,8 +9,8 @@ import { resolveEnvDebug } from "./debug-env.js";
  *
  * Sources, highest precedence first:
  *   1. environment variables (SEARXNG_URL, SEARXNG_TIMEOUT_MS, OPENAI_*)
- *   2. XDG config file   $XDG_CONFIG_HOME/web-search/config.json
- *                        (fallback ~/.config/web-search/config.json)
+ *   2. XDG config file   $XDG_CONFIG_HOME/wze-websearch/config.json
+ *                        (fallback ~/.config/wze-websearch/config.json)
  *   3. defaults
  *
  * The core never loads dotenv itself; the CLI/MCP entrypoints load `$PWD/.env`
@@ -21,17 +21,17 @@ export type Config = {
   searxngUrl: string;
   timeoutMs: number;
   storeDir: string;
-  /** Verbose stderr logging. Set by WEB_SEARCH_DEBUG (env wins), else the config file. */
+  /** Verbose stderr logging. Set by WZE_WEBSEARCH_DEBUG (env wins), else the config file. */
   debug: boolean;
   /**
    * Display cap: how many results render in markdown overviews and MCP/pi
-   * summaries. Set by WEB_SEARCH_MAX_RESULTS (env wins), else the config
+   * summaries. Set by WZE_WEBSEARCH_MAX_RESULTS (env wins), else the config
    * file, else 15. Never truncates the persisted session.
    */
   maxResults: number;
   /**
    * Budget for the summarizer agent's follow-up `search` tool calls per
-   * summarize run. Set by WEB_SEARCH_MAX_AGENT_SEARCHES (env wins), else
+   * summarize run. Set by WZE_WEBSEARCH_MAX_AGENT_SEARCHES (env wins), else
    * the config file, else 10.
    */
   maxAgentSearches: number;
@@ -69,7 +69,7 @@ function positiveInt(raw: string | number | undefined): number | undefined {
 
 export function xdgConfigPath(): string {
   const base = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
-  return join(base, "web-search", "config.json");
+  return join(base, "wze-websearch", "config.json");
 }
 
 function xdgDataDir(): string {
@@ -77,7 +77,7 @@ function xdgDataDir(): string {
 }
 
 export function defaultStoreDir(): string {
-  return join(xdgDataDir(), "web-search", "sessions");
+  return join(xdgDataDir(), "wze-websearch", "sessions");
 }
 
 /** Built-in configuration template, independent of existing config and credentials. */
@@ -112,7 +112,7 @@ function resolveSearxngUrl(file: ConfigFile): string {
   if (!searxngUrl) {
     throw new SearchError(
       "SEARXNG_URL is not set. Set it in the environment or in the XDG config file " +
-        "($XDG_CONFIG_HOME/web-search/config.json).",
+        "($XDG_CONFIG_HOME/wze-websearch/config.json).",
     );
   }
   return searxngUrl;
@@ -126,7 +126,7 @@ function resolveTimeoutMs(file: ConfigFile): number {
 
 function resolveMaxResults(file: ConfigFile): number {
   return (
-    positiveInt(process.env.WEB_SEARCH_MAX_RESULTS) ??
+    positiveInt(process.env.WZE_WEBSEARCH_MAX_RESULTS) ??
     positiveInt(file.maxResults) ??
     DEFAULT_MAX_RESULTS
   );
@@ -134,7 +134,7 @@ function resolveMaxResults(file: ConfigFile): number {
 
 function resolveMaxAgentSearches(file: ConfigFile): number {
   return (
-    positiveInt(process.env.WEB_SEARCH_MAX_AGENT_SEARCHES) ??
+    positiveInt(process.env.WZE_WEBSEARCH_MAX_AGENT_SEARCHES) ??
     positiveInt(file.maxAgentSearches) ??
     DEFAULT_MAX_AGENT_SEARCHES
   );

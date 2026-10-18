@@ -1,22 +1,22 @@
 {
-  "name": "@rwese/web-search-mcp",
+  "name": "@rwese/wze-websearch",
   "version": "0.6.0",
   "license": "MIT",
   "author": "rwese",
   "type": "module",
   "description": "Agent-agnostic web search: a SearXNG-backed search core shared by a CLI, an MCP server, and a pi extension wrapper.",
-  "homepage": "https://git.void.cold.at/ai-factory/web-search-mcp",
+  "homepage": "https://git.void.cold.at/ai-factory/wze-websearch",
   "repository": {
     "type": "git",
-    "url": "ssh://git@git.void.cold.at:3022/ai-factory/web-search-mcp.git"
+    "url": "ssh://git@git.void.cold.at:3022/ai-factory/wze-websearch.git"
   },
   "bugs": {
-    "url": "https://git.void.cold.at/ai-factory/web-search-mcp/issues"
+    "url": "https://git.void.cold.at/ai-factory/wze-websearch/issues"
   },
   "keywords": [
     "pi-package",
     "web-search",
-    "web-search-mcp",
+    "wze-websearch",
     "searxng",
     "mcp",
     "model-context-protocol"
@@ -44,8 +44,8 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "web-search": "./dist/surfaces/cli/cli.js",
-    "web-search-mcp": "./dist/surfaces/mcp/mcp.js"
+    "wze-websearch": "./dist/surfaces/cli/cli.js",
+    "wze-websearch-mcp": "./dist/surfaces/mcp/mcp.js"
   },
   "files": [
     "dist",

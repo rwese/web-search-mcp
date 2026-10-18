@@ -65,7 +65,7 @@ function positiveInt(raw: string | number | undefined): number | undefined {
 /**
  * Resolve the per-session overview cap.
  *
- * Precedence: explicit opt > `WEB_SEARCH_MAX_RESULTS` env (positive
+ * Precedence: explicit opt > `WZE_WEBSEARCH_MAX_RESULTS` env (positive
  * integer) > config-file value > built-in default (15). Display-only —
  * the persisted session always keeps the full result set.
  */
@@ -74,13 +74,13 @@ export function resolveMaxResults(
 	opts: { env?: Record<string, string | undefined>; configValue?: number } = {},
 ): number {
 	const env = opts.env ?? process.env;
-	return positiveInt(explicit) ?? positiveInt(env.WEB_SEARCH_MAX_RESULTS) ?? positiveInt(opts.configValue) ?? DEFAULT_OVERVIEW_CAP;
+	return positiveInt(explicit) ?? positiveInt(env.WZE_WEBSEARCH_MAX_RESULTS) ?? positiveInt(opts.configValue) ?? DEFAULT_OVERVIEW_CAP;
 }
 
 /**
  * Resolve the follow-up `search` tool budget per summarize run.
  *
- * Precedence: explicit opt > `WEB_SEARCH_MAX_AGENT_SEARCHES` env
+ * Precedence: explicit opt > `WZE_WEBSEARCH_MAX_AGENT_SEARCHES` env
  * (positive integer) > config-file value > built-in default (10).
  */
 export function resolveMaxAgentSearches(
@@ -88,13 +88,13 @@ export function resolveMaxAgentSearches(
 	opts: { env?: Record<string, string | undefined>; configValue?: number } = {},
 ): number {
 	const env = opts.env ?? process.env;
-	return positiveInt(explicit) ?? positiveInt(env.WEB_SEARCH_MAX_AGENT_SEARCHES) ?? positiveInt(opts.configValue) ?? DEFAULT_AGENT_SEARCH_LIMIT;
+	return positiveInt(explicit) ?? positiveInt(env.WZE_WEBSEARCH_MAX_AGENT_SEARCHES) ?? positiveInt(opts.configValue) ?? DEFAULT_AGENT_SEARCH_LIMIT;
 }
 
 /**
  * Resolve the LangChain graph recursion cap for the summarizer agent.
  *
- * Precedence: explicit `recursionLimit` opt > `WEB_SEARCH_RECURSION_LIMIT`
+ * Precedence: explicit `recursionLimit` opt > `WZE_WEBSEARCH_RECURSION_LIMIT`
  * env (positive integer) > `maxModelCalls * 4 + 10`. The multiplier keeps
  * the recursion cap comfortably above the model-call cap so the
  * `modelCallLimitMiddleware` thread limit fires first.
@@ -104,7 +104,7 @@ export function resolveRecursionLimit(
 	opts: { recursionLimit?: number; env?: Record<string, string | undefined> } = {},
 ): number {
 	if (opts.recursionLimit !== undefined) return opts.recursionLimit;
-	const raw = (opts.env ?? process.env).WEB_SEARCH_RECURSION_LIMIT;
+	const raw = (opts.env ?? process.env).WZE_WEBSEARCH_RECURSION_LIMIT;
 	if (raw !== undefined && raw.trim() !== "") {
 		const parsed = Number(raw);
 		if (Number.isInteger(parsed) && parsed > 0) return parsed;

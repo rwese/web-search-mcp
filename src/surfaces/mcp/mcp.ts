@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * web-search-mcp — MCP server entrypoint for the agent-agnostic web-search package.
+ * wze-websearch-mcp — MCP server entrypoint for the agent-agnostic wze-websearch package.
  *
  * Locked by wayfinder ticket #9 (MCP server surface):
  *   - `search` is the only tool in the first build-out: query (required),

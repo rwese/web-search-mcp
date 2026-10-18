@@ -142,7 +142,7 @@ describe("renderMarkdown", () => {
         };
         const md = renderMarkdown(many, 10);
         expect(md).toContain(
-            "Showing 10 of 20 page 1, to get further results: web-search --session 3f9a2c7e-what-is-kubernetes --page 2",
+            "Showing 10 of 20 page 1, to get further results: wze-websearch --session 3f9a2c7e-what-is-kubernetes --page 2",
         );
     });
 

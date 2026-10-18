@@ -22,21 +22,21 @@ afterEach(async () => {
 
 describe("--default-config", () => {
 	it.each([false, true])("prints reusable defaults independent of existing configuration (env overrides: %s)", async (overrides) => {
-		root = await mkdtemp(join(tmpdir(), "web-search-default-config-"));
+		root = await mkdtemp(join(tmpdir(), "wze-websearch-default-config-"));
 		vi.stubEnv("XDG_CONFIG_HOME", root);
 		vi.stubEnv("XDG_DATA_HOME", join(root, "data"));
-		for (const key of ["SEARXNG_URL", "SEARXNG_TIMEOUT_MS", "WEB_SEARCH_DEBUG", "DEBUG", "WEB_SEARCH_MAX_RESULTS", "WEB_SEARCH_MAX_AGENT_SEARCHES", "OPENAI_BASE_URL", "OPENAI_MODEL", "OPENAI_API_KEY"]) {
+		for (const key of ["SEARXNG_URL", "SEARXNG_TIMEOUT_MS", "WZE_WEBSEARCH_DEBUG", "DEBUG", "WZE_WEBSEARCH_MAX_RESULTS", "WZE_WEBSEARCH_MAX_AGENT_SEARCHES", "OPENAI_BASE_URL", "OPENAI_MODEL", "OPENAI_API_KEY"]) {
 			vi.stubEnv(key, "");
 		}
 		if (overrides) {
 			vi.stubEnv("SEARXNG_URL", "https://private.example.com");
 			vi.stubEnv("OPENAI_API_KEY", "private-key");
-			vi.stubEnv("WEB_SEARCH_MAX_RESULTS", "42");
+			vi.stubEnv("WZE_WEBSEARCH_MAX_RESULTS", "42");
 		}
-		await mkdir(join(root, "web-search"));
+		await mkdir(join(root, "wze-websearch"));
 		// Generating defaults must work even if the current config cannot be parsed.
 		await writeFile(xdgConfigPath(), "invalid JSON");
-		process.argv = ["node", "web-search", "--default-config"];
+		process.argv = ["node", "wze-websearch", "--default-config"];
 		const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 		const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
 		vi.resetModules();
@@ -48,7 +48,7 @@ describe("--default-config", () => {
 		expect(config).toEqual({
 			searxngUrl: "",
 			timeoutMs: 10000,
-			storeDir: join(root, "data", "web-search", "sessions"),
+			storeDir: join(root, "data", "wze-websearch", "sessions"),
 			debug: false,
 			maxResults: 15,
 			maxAgentSearches: 10,
@@ -59,7 +59,7 @@ describe("--default-config", () => {
 
 		vi.stubEnv("SEARXNG_URL", "");
 		vi.stubEnv("OPENAI_API_KEY", "");
-		vi.stubEnv("WEB_SEARCH_MAX_RESULTS", "");
+		vi.stubEnv("WZE_WEBSEARCH_MAX_RESULTS", "");
 		config.searxngUrl = "https://search.example.com";
 		await writeFile(xdgConfigPath(), JSON.stringify(config));
 		expect(await loadConfig()).toEqual(config);
@@ -67,7 +67,7 @@ describe("--default-config", () => {
 
 	it("uses the home config directory when XDG_CONFIG_HOME is unset", () => {
 		vi.stubEnv("XDG_CONFIG_HOME", "");
-		expect(xdgConfigPath()).toBe(join(homedir(), ".config", "web-search", "config.json"));
+		expect(xdgConfigPath()).toBe(join(homedir(), ".config", "wze-websearch", "config.json"));
 	});
 
 	it.each([

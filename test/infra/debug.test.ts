@@ -20,21 +20,21 @@ describe("resolveDebug", () => {
 });
 
 describe("resolveEnvDebug / debugEnabledFromEnv", () => {
-	it("enables on WEB_SEARCH_DEBUG=1", () => {
-		expect(resolveEnvDebug({ WEB_SEARCH_DEBUG: "1" })).toBe(true);
-		expect(debugEnabledFromEnv({ WEB_SEARCH_DEBUG: "1" })).toBe(true);
+	it("enables on WZE_WEBSEARCH_DEBUG=1", () => {
+		expect(resolveEnvDebug({ WZE_WEBSEARCH_DEBUG: "1" })).toBe(true);
+		expect(debugEnabledFromEnv({ WZE_WEBSEARCH_DEBUG: "1" })).toBe(true);
 	});
 
-	it("disables on WEB_SEARCH_DEBUG=0", () => {
-		expect(resolveEnvDebug({ WEB_SEARCH_DEBUG: "0" })).toBe(false);
+	it("disables on WZE_WEBSEARCH_DEBUG=0", () => {
+		expect(resolveEnvDebug({ WZE_WEBSEARCH_DEBUG: "0" })).toBe(false);
 	});
 
 	it("enables on DEBUG=*", () => {
 		expect(debugEnabledFromEnv({ DEBUG: "*" })).toBe(true);
 	});
 
-	it("enables on a DEBUG list containing web-search", () => {
-		expect(debugEnabledFromEnv({ DEBUG: "foo,web-search" })).toBe(true);
+	it("enables on a DEBUG list containing wze-websearch", () => {
+		expect(debugEnabledFromEnv({ DEBUG: "foo,wze-websearch" })).toBe(true);
 	});
 
 	it("leaves an empty env undefined", () => {
@@ -62,7 +62,7 @@ describe("createDebugLogger", () => {
 		} finally {
 			process.stderr.write = original;
 		}
-		expect(writes.join("")).toContain("[web-search:debug] [searxng] GET x");
+		expect(writes.join("")).toContain("[wze-websearch:debug] [searxng] GET x");
 		expect(writes.join("")).toContain('"query":"hi"');
 	});
 

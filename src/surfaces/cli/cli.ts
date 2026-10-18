@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * web-search CLI — search entrypoint for the agent-agnostic web-search package.
+ * wze-websearch CLI — search entrypoint for the agent-agnostic wze-websearch package.
  *
  * Locked by wayfinder ticket #8 (CLI surface):
- *   - bare `web-search "<query>"` = search; `--session <id>` = retrieve a
+ *   - bare `wze-websearch "<query>"` = search; `--session <id>` = retrieve a
  *     persisted session (mutually exclusive with a query).
  *   - flags: --categories/--engines (csv), --language, --time-range
  *     (day|month|year), --safesearch (0|1|2), --page, --json, --help, --version.
@@ -54,7 +54,7 @@ function handleHelp(): number {
 }
 
 function handleVersion(): number {
-	process.stdout.write(`web-search ${version}\n`);
+	process.stdout.write(`wze-websearch ${version}\n`);
 	return 0;
 }
 
@@ -110,10 +110,10 @@ async function renderSessionSummary(
 		process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 	} else {
 		const extra = followUpSessions
-			.map((session) => `\n\n**Session:** ${session.sessionId}\nSearch query: ${JSON.stringify(session.query)}\n\nRaw results: web-search --session ${session.sessionId}`)
+			.map((session) => `\n\n**Session:** ${session.sessionId}\nSearch query: ${JSON.stringify(session.query)}\n\nRaw results: wze-websearch --session ${session.sessionId}`)
 			.join("");
 		process.stdout.write(
-			`**Session:** ${record.sessionId}\n\n${summary}\n\nRaw results: web-search --session ${record.sessionId}${extra}\n`,
+			`**Session:** ${record.sessionId}\n\n${summary}\n\nRaw results: wze-websearch --session ${record.sessionId}${extra}\n`,
 		);
 	}
 }
@@ -154,7 +154,7 @@ async function handleAiQuery(parsed: ParsedArgs): Promise<number> {
 			process.stdout.write(`${JSON.stringify(answer, null, 2)}\n`);
 		} else {
 			process.stdout.write(
-				`${answer.sessions.map((session) => `**Session:** ${session.sessionId}\nSearch query: ${JSON.stringify(session.query)}`).join("\n\n")}\n\n${answer.summary}\n\n${answer.sessions.map((session) => `Raw results: web-search --session ${session.sessionId}`).join("\n")}\n`,
+				`${answer.sessions.map((session) => `**Session:** ${session.sessionId}\nSearch query: ${JSON.stringify(session.query)}`).join("\n\n")}\n\n${answer.summary}\n\n${answer.sessions.map((session) => `Raw results: wze-websearch --session ${session.sessionId}`).join("\n")}\n`,
 			);
 		}
 		return 0;

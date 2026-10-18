@@ -1,7 +1,7 @@
-# AGENTS.md — @rwese/web-search-mcp
+# AGENTS.md — @rwese/wze-websearch
 
 SearXNG-backed web search: a shared core (`src/`) consumed by a CLI
-(`web-search`), an MCP server (`web-search-mcp`, stdio + streamable HTTP), and
+(`wze-websearch`), an MCP server (`wze-websearch-mcp`, stdio + streamable HTTP), and
 a pi extension wrapper (`extensions/`). Every search persists a session on
 disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
 
@@ -36,10 +36,10 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
   the core fails fast without it.
 - `OPENAI_API_KEY` wins when set; `openai.apiKey` in the XDG config file is
   the fallback (keep the file mode 0600). The dev/test litellm key
-  is in the cold-at vault as `web-search/litellm-api-key` — read
+  is in the cold-at vault as `wze-websearch/litellm-api-key` — read
   `docs/agents/agentic-loop.md` for its multiline gotcha before using it.
 - Precedence: CLI flag > env > XDG config file > defaults. Sessions default to
-  `$XDG_DATA_HOME/web-search/sessions/`, shared by all surfaces.
+  `$XDG_DATA_HOME/wze-websearch/sessions/`, shared by all surfaces.
 
 ## Pointers
 

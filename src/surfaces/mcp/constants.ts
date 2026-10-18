@@ -1,2 +1,2 @@
-export const SERVER_NAME = "web-search-mcp";
+export const SERVER_NAME = "wze-websearch";
 export const DEFAULT_PORT = 3000;

@@ -253,21 +253,21 @@ describe("resolveRecursionLimit", () => {
 		expect(resolveRecursionLimit(10, { env: {} })).toBe(50);
 	});
 
-	it("prefers WEB_SEARCH_RECURSION_LIMIT over the computed default", () => {
-		expect(resolveRecursionLimit(10, { env: { WEB_SEARCH_RECURSION_LIMIT: "80" } })).toBe(80);
+	it("prefers WZE_WEBSEARCH_RECURSION_LIMIT over the computed default", () => {
+		expect(resolveRecursionLimit(10, { env: { WZE_WEBSEARCH_RECURSION_LIMIT: "80" } })).toBe(80);
 	});
 
 	it("ignores a non-numeric env value", () => {
-		expect(resolveRecursionLimit(10, { env: { WEB_SEARCH_RECURSION_LIMIT: "lots" } })).toBe(50);
+		expect(resolveRecursionLimit(10, { env: { WZE_WEBSEARCH_RECURSION_LIMIT: "lots" } })).toBe(50);
 	});
 
 	it("ignores a non-positive env value", () => {
-		expect(resolveRecursionLimit(10, { env: { WEB_SEARCH_RECURSION_LIMIT: "0" } })).toBe(50);
+		expect(resolveRecursionLimit(10, { env: { WZE_WEBSEARCH_RECURSION_LIMIT: "0" } })).toBe(50);
 	});
 
 	it("prefers an explicit opt over the env", () => {
 		expect(
-			resolveRecursionLimit(10, { recursionLimit: 42, env: { WEB_SEARCH_RECURSION_LIMIT: "80" } }),
+			resolveRecursionLimit(10, { recursionLimit: 42, env: { WZE_WEBSEARCH_RECURSION_LIMIT: "80" } }),
 		).toBe(42);
 	});
 });
@@ -279,13 +279,13 @@ describe("resolveMaxResults", () => {
 
 	it("prefers an explicit opt over env and config-file values", () => {
 		expect(
-			resolveMaxResults(3, { env: { WEB_SEARCH_MAX_RESULTS: "20" }, configValue: 12 }),
+			resolveMaxResults(3, { env: { WZE_WEBSEARCH_MAX_RESULTS: "20" }, configValue: 12 }),
 		).toBe(3);
 	});
 
-	it("prefers WEB_SEARCH_MAX_RESULTS over the config-file value and default", () => {
-		expect(resolveMaxResults(undefined, { env: { WEB_SEARCH_MAX_RESULTS: "20" }, configValue: 12 })).toBe(20);
-		expect(resolveMaxResults(undefined, { env: { WEB_SEARCH_MAX_RESULTS: "20" } })).toBe(20);
+	it("prefers WZE_WEBSEARCH_MAX_RESULTS over the config-file value and default", () => {
+		expect(resolveMaxResults(undefined, { env: { WZE_WEBSEARCH_MAX_RESULTS: "20" }, configValue: 12 })).toBe(20);
+		expect(resolveMaxResults(undefined, { env: { WZE_WEBSEARCH_MAX_RESULTS: "20" } })).toBe(20);
 	});
 
 	it("falls back to the config-file value, then to the default", () => {
@@ -294,8 +294,8 @@ describe("resolveMaxResults", () => {
 	});
 
 	it("ignores a non-positive or non-numeric env value", () => {
-		expect(resolveMaxResults(undefined, { env: { WEB_SEARCH_MAX_RESULTS: "0" } })).toBe(15);
-		expect(resolveMaxResults(undefined, { env: { WEB_SEARCH_MAX_RESULTS: "lots" } })).toBe(15);
+		expect(resolveMaxResults(undefined, { env: { WZE_WEBSEARCH_MAX_RESULTS: "0" } })).toBe(15);
+		expect(resolveMaxResults(undefined, { env: { WZE_WEBSEARCH_MAX_RESULTS: "lots" } })).toBe(15);
 	});
 });
 
@@ -306,12 +306,12 @@ describe("resolveMaxAgentSearches", () => {
 
 	it("prefers an explicit opt over env and config-file values", () => {
 		expect(
-			resolveMaxAgentSearches(2, { env: { WEB_SEARCH_MAX_AGENT_SEARCHES: "7" }, configValue: 5 }),
+			resolveMaxAgentSearches(2, { env: { WZE_WEBSEARCH_MAX_AGENT_SEARCHES: "7" }, configValue: 5 }),
 		).toBe(2);
 	});
 
-	it("prefers WEB_SEARCH_MAX_AGENT_SEARCHES over the config-file value and default", () => {
-		expect(resolveMaxAgentSearches(undefined, { env: { WEB_SEARCH_MAX_AGENT_SEARCHES: "7" }, configValue: 5 })).toBe(7);
+	it("prefers WZE_WEBSEARCH_MAX_AGENT_SEARCHES over the config-file value and default", () => {
+		expect(resolveMaxAgentSearches(undefined, { env: { WZE_WEBSEARCH_MAX_AGENT_SEARCHES: "7" }, configValue: 5 })).toBe(7);
 	});
 
 	it("falls back to the config-file value, then to the default", () => {
@@ -320,7 +320,7 @@ describe("resolveMaxAgentSearches", () => {
 	});
 
 	it("ignores a non-positive env value", () => {
-		expect(resolveMaxAgentSearches(undefined, { env: { WEB_SEARCH_MAX_AGENT_SEARCHES: "-1" } })).toBe(10);
+		expect(resolveMaxAgentSearches(undefined, { env: { WZE_WEBSEARCH_MAX_AGENT_SEARCHES: "-1" } })).toBe(10);
 	});
 });
 

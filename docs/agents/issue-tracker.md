@@ -1,4 +1,4 @@
-# Issue tracker ops — git.void.cold.at/ai-factory/web-search-mcp
+# Issue tracker ops — git.void.cold.at/ai-factory/wze-websearch
 
 Single source of truth: the issue body + state. Frontier = open + all blockers
 closed + unassigned. Claim by assigning to `ai-factory`; resolve by posting a
@@ -12,13 +12,13 @@ resolution comment, then closing.
 
 ## Recipes
 
-- Create: `POST /repos/ai-factory/web-search-mcp/issues` with
+- Create: `POST /repos/ai-factory/wze-websearch/issues` with
   `{"title", "body", "labels": [<int ids>]}` — labels are **IDs, not names**
   (names fail with a Go unmarshal error).
 - Label IDs: `wayfinder:map`=16, `wayfinder:research`=17,
   `wayfinder:prototype`=18, `wayfinder:grilling`=19, `wayfinder:task`=20.
-- Blocking edge: `POST /repos/ai-factory/web-search-mcp/issues/{child}/dependencies`
-  with `{"index": <blocker-number>, "owner": "ai-factory", "repo": "web-search-mcp"}`
+- Blocking edge: `POST /repos/ai-factory/wze-websearch/issues/{child}/dependencies`
+  with `{"index": <blocker-number>, "owner": "ai-factory", "repo": "wze-websearch"}`
   → 201. Read back via `GET .../issues/{n}/dependencies` (the issue object's
   `blocked_by` is not populated).
 - Comment: `POST .../issues/{n}/comments` with `{"body": "..."}` — wrap with

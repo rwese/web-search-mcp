@@ -1,5 +1,5 @@
 /**
- * Debug logger for the web-search core.
+ * Debug logger for the wze-websearch core.
  *
  * All debug output goes to stderr (never stdout) so stdout stays
  * machine-readable. Secrets (API keys) are never logged — callers must not
@@ -41,7 +41,7 @@ export function createDebugLogger(enabled: boolean): DebugLogger {
 		enabled: true,
 		log(section: string, message: string, data?: unknown): void {
 			const suffix = data === undefined ? '' : ` ${formatData(data)}`;
-			process.stderr.write(`[web-search:debug] [${section}] ${message}${suffix}\n`);
+			process.stderr.write(`[wze-websearch:debug] [${section}] ${message}${suffix}\n`);
 		},
 	};
 }

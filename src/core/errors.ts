@@ -1,4 +1,4 @@
-/** Typed errors raised by the web-search core. */
+/** Typed errors raised by the wze-websearch core. */
 export class SearchError extends Error {
   constructor(message: string) {
     super(message);

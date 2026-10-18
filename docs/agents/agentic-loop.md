@@ -54,7 +54,7 @@ validation — that is the abstention path, not a citation failure.
 - `modelCallLimitMiddleware({ threadLimit: maxModelCalls })` bounds the agent.
 - Every `agent.invoke` also passes `recursionLimit` — `maxModelCalls * 4 + 10`
   by default (so 50 at the default limit of 10 model calls), overridable via
-  `WEB_SEARCH_RECURSION_LIMIT` (positive integer) or an explicit
+  `WZE_WEBSEARCH_RECURSION_LIMIT` (positive integer) or an explicit
   `summarizeSession` opt — the graph recursion cap fires before the
   model-call cap otherwise. Keep the two in this ratio when changing limits.
 - With `exitBehavior: "end"` the middleware ends the run with a synthetic
@@ -64,7 +64,7 @@ validation — that is the abstention path, not a citation failure.
   the exhaustion on stderr with a nonzero exit, never as a successful
   answer.
 - The follow-up `search` tool has its own budget (`maxAgentSearches`,
-  `WEB_SEARCH_MAX_AGENT_SEARCHES`, default 10 per answer). Exhaustion throws
+  `WZE_WEBSEARCH_MAX_AGENT_SEARCHES`, default 10 per answer). Exhaustion throws
   `SearchVolumeExhausted` with `status = 429` ("search volume exhausted"),
   which the MCP/HTTP surfaces can map to HTTP 429. Follow-up calls carry the
   plan's categories/engines/language/timeRange so answers stay on-scope.
@@ -77,7 +77,7 @@ Needs `SEARXNG_URL` plus the dev/test key (dev-only, never committed):
 export SEARXNG_URL=https://search.wze.nope.at
 export OPENAI_BASE_URL=https://litellm.void.cold.at/v1
 export OPENAI_MODEL=deepseek-v4-flash
-export OPENAI_API_KEY=$(gopass show web-search/litellm-api-key | head -1)
+export OPENAI_API_KEY=$(gopass show wze-websearch/litellm-api-key | head -1)
 ```
 
 The vault secret is **multiline** (key on line 1, marker comment after) —
@@ -89,7 +89,7 @@ XDG_DATA_HOME=/tmp/smoke node dist/surfaces/cli/cli.js "<query>" --use-ai       
 XDG_DATA_HOME=/tmp/smoke node dist/surfaces/cli/cli.js --session <id> --use-ai     # summarize stored
 ```
 
-Expect exit 0, a `**Session:**` line, a `Raw results: web-search --session <id>`
+Expect exit 0, a `**Session:**` line, a `Raw results: wze-websearch --session <id>`
 re-read hint, unresponsive-engine warnings on stderr
 (non-fatal, never on stdout), and a footnoted summary with Sources. `--json` adds the full
 `summary` / answer envelope.

@@ -1,5 +1,5 @@
 /**
- * Shared domain types for the web-search core.
+ * Shared domain types for the wze-websearch core.
  *
  * The core is the deep seam every surface (CLI, MCP server, pi wrapper)
  * consumes. Types here are the normalized contract derived from the SearXNG
@@ -36,7 +36,7 @@ export type SearchOptions = {
   /**
    * Verbose stderr logging (search requests, session writes). `true` enables
    * the default stderr logger; pass a `DebugLogger` to share one across calls.
-   * Falls back to `Config.debug`, then `WEB_SEARCH_DEBUG` in the environment.
+   * Falls back to `Config.debug`, then `WZE_WEBSEARCH_DEBUG` in the environment.
    */
   debug?: boolean | DebugLogger;
 };

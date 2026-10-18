@@ -1,5 +1,5 @@
 /**
- * Doctor — validate the local web-search setup.
+ * Doctor — validate the local wze-websearch setup.
  *
  * Checks, in order: config loads (SEARXNG_URL present) → session store is
  * writable → SearXNG /config reachable → instance has enabled engines →
@@ -269,7 +269,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
 
 /** Render a DoctorReport as lean human-readable text (stdout-safe). */
 export function renderDoctorReport(report: DoctorReport): string {
-  const lines = ["web-search doctor"];
+  const lines = ["wze-websearch doctor"];
   for (const check of report.checks) {
     lines.push(`${check.ok ? "✓" : "✗"} ${check.name}: ${check.detail}`);
   }

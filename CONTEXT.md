@@ -1,6 +1,6 @@
 # CONTEXT
 
-Glossary for the `@rwese/web-search-mcp` package. Canonical terms, sharpened
+Glossary for the `@rwese/wze-websearch` package. Canonical terms, sharpened
 during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker).
 
 ## Terms
@@ -15,7 +15,7 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
 - **Session id** — `<8 hex>-<query slug>`, e.g. `3f9a2c7e-what-is-kubernetes`.
   The human-readable slug makes sessions browsable without opening them.
 - **Store root** — the base directory for **search sessions**, resolved from
-  config (default `$XDG_DATA_HOME/web-search/sessions/`). CLI, MCP server and
+  config (default `$XDG_DATA_HOME/wze-websearch/sessions/`). CLI, MCP server and
   pi wrapper share it, so a session written by one surface can be read by another.
 - **Result** — one normalized search hit, the core's `SearchResult`: `title`,
   `url`, `snippet` (SearXNG's `content` excerpt), `publishedDate`, `score`,
@@ -37,7 +37,7 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
   it does not reimplement search logic.
 - **Configuration** — resolved by `loadConfig()` from (highest precedence)
   environment variables, the XDG config file
-  (`$XDG_CONFIG_HOME/web-search/config.json`), and defaults. `OPENAI_API_KEY`
+  (`$XDG_CONFIG_HOME/wze-websearch/config.json`), and defaults. `OPENAI_API_KEY`
   wins when set; `openai.apiKey` in the config file is the fallback (keep the
   file mode 0600).
 - **Search plan** — the decomposition of a user's request into focused,
@@ -54,7 +54,7 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
   original query. The CLI default for a query when the LLM is configured
   (model + API key); `--no-ai` opts out to raw results, `--use-ai` forces
   the loop. AI markdown carries the session id plus a
-  `web-search --session <id>` re-read hint so the raw results stay
+  `wze-websearch --session <id>` re-read hint so the raw results stay
   reviewable.
 - **Session overview** — a top-result listing labeled with its search session
   and search query. Result numbers are unique across the sessions in an AI answer.
@@ -64,8 +64,8 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
 - **Debug logging** — verbose stderr-only diagnostics (search request URLs +
   timing, session persistence, and with `--use-ai` the planner decision,
   tool calls, and model-call counts). Enabled by `SearchOptions.debug`, a
-  `DebugLogger`, `Config.debug`, `WEB_SEARCH_DEBUG`, a `DEBUG` list containing
-  `web-search`, or the CLI `--debug` flag. Never touches stdout, so `--json`
+  `DebugLogger`, `Config.debug`, `WZE_WEBSEARCH_DEBUG`, a `DEBUG` list containing
+  `wze-websearch`, or the CLI `--debug` flag. Never touches stdout, so `--json`
   output stays machine-readable.
 - **Progress events** — typed `ProgressEvent`s (`planning`, `plan-decided`,
   per-query `searching`/`searched`, `synthesizing`, `done`) emitted via an
@@ -91,5 +91,5 @@ during the wayfinder map decisions (issues #5–#10 on the repo's issue tracker)
   flags always override the AI plan; footnote failures retry once as a direct
   call, never a second tool loop.
 - Markdown summaries and session overviews cap at 15 results by default
-  (`maxResults`/`WEB_SEARCH_MAX_RESULTS`) — display-only, the persisted
+  (`maxResults`/`WZE_WEBSEARCH_MAX_RESULTS`) — display-only, the persisted
   session keeps the full result set.

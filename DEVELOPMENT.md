@@ -1,6 +1,6 @@
 # Development
 
-Contributor notes for `@rwese/web-search-mcp`. User-facing docs live in
+Contributor notes for `@rwese/wze-websearch`. User-facing docs live in
 `README.md`; this file covers build, architecture, and internals.
 
 ## Commands
@@ -34,10 +34,10 @@ pnpm test       # vitest run only
   the core fails fast without it.
 - `OPENAI_API_KEY` wins when set; `openai.apiKey` in the XDG config file is
   the fallback (keep the file mode 0600). The dev/test litellm key is in the
-  cold-at vault as `web-search/litellm-api-key` — read
+  cold-at vault as `wze-websearch/litellm-api-key` — read
   `docs/agents/agentic-loop.md` for its multiline gotcha before using it.
 - Precedence: CLI flag > env > XDG config file > defaults. Sessions default to
-  `$XDG_DATA_HOME/web-search/sessions/`, shared by all surfaces.
+  `$XDG_DATA_HOME/wze-websearch/sessions/`, shared by all surfaces.
 
 ## How the AI answer works (default when configured)
 

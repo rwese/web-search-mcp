@@ -6,7 +6,7 @@ import type { SearchResponse } from "./types.js";
  * Pages over `response.results` with `pageNo` (1-based, page size =
  * `maxResults`); result numbers stay global across pages. When the results
  * span more than one page a footer is appended — `Showing X of Y page Z, to
- * get further results: web-search --session <id> --page <Z+1>`.
+ * get further results: wze-websearch --session <id> --page <Z+1>`.
  *
  * Diagnostics such as unresponsive engines are intentionally NOT rendered
  * here: all warnings go to stderr (CLI) and never pollute stdout, which
@@ -57,7 +57,7 @@ export function renderMarkdown(
 	if (totalPages > 1) {
 		const further =
 			page < totalPages
-				? `, to get further results: web-search --session ${response.sessionId} --page ${page + 1}`
+				? `, to get further results: wze-websearch --session ${response.sessionId} --page ${page + 1}`
 				: "";
 		lines.push(`Showing ${shown.length} of ${response.results.length} page ${page}${further}`);
 	}
