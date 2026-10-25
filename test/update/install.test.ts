@@ -55,7 +55,7 @@ describe("install detection", () => {
 			execPath: "/usr/lib/node_modules/@rwese/wze-websearch/dist/surfaces/cli/cli.js",
 		});
 		expect(context.kind).toBe("npm");
-		expect(context.managerCommand).toContain("npm i -g");
+		expect(context.installCommand).toContain("install.sh");
 	});
 
 	it("refuses to treat a container as self-owned", () => {

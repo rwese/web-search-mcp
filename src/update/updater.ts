@@ -225,8 +225,8 @@ export async function performUpdate(options: UpdateOptions): Promise<UpdateResul
   const { install } = options;
   if (install.kind !== "self-owned") {
     throw new UpdateUnsupported(
-      install.managerCommand
-        ? `this install is managed by npm; update it with: ${install.managerCommand}`
+      install.kind === "npm" && install.installCommand
+        ? `this is an npm installation; npm releases are not published. Reinstall from a signed release: ${install.installCommand}`
         : "this is not a self-owned release install; nothing to update",
     );
   }

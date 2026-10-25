@@ -24,7 +24,7 @@ pnpm test       # vitest run only
   rules live here.
 - `src/diagnostics/doctor.ts` — `--doctor` setup checks.
 - `src/update/` — release installs: `install` (layout, ownership, wrappers),
-  `checker` (release eligibility), `release` (Forgejo/npm version sources),
+  `checker` (release eligibility), `release` (Forgejo release source),
   `ssh-signature` (pinned-key verification), `archive` (safe tar extraction),
   `updater` (lock, verify, stage, probe, swap, rollback), `background` (TTY-only
   check). Release pipeline: `scripts/release.sh`; bootstrap: `scripts/install.sh`;

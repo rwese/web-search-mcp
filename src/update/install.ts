@@ -22,6 +22,9 @@ import { parseVersion } from "./version.js";
 
 export type InstallKind = "self-owned" | "npm" | "development" | "container" | "unknown";
 
+const RELEASE_INSTALL_COMMAND =
+  "curl -fsSL https://git.void.cold.at/ai-factory/wze-websearch/raw/branch/main/scripts/install.sh | sh";
+
 /** Process environment shape; avoids leaning on the NodeJS namespace in lint. */
 export type Env = Record<string, string | undefined>;
 
@@ -44,8 +47,8 @@ export type InstallContext = {
   currentVersion?: string;
   /** Version directory for a self-owned install. */
   installPath?: string;
-  /** Command the owner of a managed install expects users to run. */
-  managerCommand?: string;
+  /** Reinstall guidance for an installation this updater does not own. */
+  installCommand?: string;
 };
 
 export type DetectOptions = {
@@ -217,7 +220,7 @@ export function detectInstall(options: DetectOptions = {}): InstallContext {
       ...base,
       kind: "npm",
       currentVersion: packageVersion,
-      managerCommand: "npm i -g @rwese/wze-websearch",
+      installCommand: RELEASE_INSTALL_COMMAND,
     };
   }
 

@@ -15,23 +15,21 @@ Web search for your terminal and AI agents, powered by your own
 ## Quickstart
 
 You need **Node.js 20+** and a **SearXNG instance with its JSON API enabled**.
-Replace the example URL with your instance:
+Install a signed release (no sudo), then replace the example URL with your
+instance:
 
 ```sh
-npm install -g @rwese/wze-websearch
+curl -fsSL https://git.void.cold.at/ai-factory/wze-websearch/raw/branch/main/scripts/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
 export SEARXNG_URL=https://search.example.com
 
 wze-websearch --doctor
 wze-websearch "what is kubernetes"
 ```
 
-Or try it without a global install:
-
-```sh
-SEARXNG_URL=https://search.example.com npx -y -p @rwese/wze-websearch wze-websearch "what is kubernetes"
-```
-
-An LLM is optional. With only SearXNG configured, searches return a list of results.
+This project does **not** publish to npm. Releases and the in-binary updater
+are served from Forgejo. An LLM is optional; with only SearXNG configured,
+searches return a list of results.
 
 ## CLI
 
@@ -64,8 +62,7 @@ For clients that use an `mcpServers` configuration, add:
 {
   "mcpServers": {
     "wze-websearch": {
-      "command": "npx",
-      "args": ["-y", "-p", "@rwese/wze-websearch", "wze-websearch-mcp"],
+      "command": "wze-websearch-mcp",
       "env": {
         "SEARXNG_URL": "https://search.example.com"
       }
@@ -80,11 +77,9 @@ package and setting `SEARXNG_URL`. The endpoint is `http://localhost:3000/mcp`.
 
 ### pi
 
-```sh
-pi install npm:@rwese/wze-websearch
-```
-
-Set `SEARXNG_URL` in pi's environment, then use the `search` tool.
+The extension wrapper lives in `extensions/` and is loaded from a source
+checkout of this repository; it is not published to npm. Set `SEARXNG_URL` in
+pi's environment, then use the `search` tool.
 
 ## AI answers
 
@@ -105,14 +100,7 @@ Pass `--no-ai` for raw results. Saved sessions stay raw unless you pass
 
 ## Updates
 
-Installing with npm keeps npm in charge of upgrades:
-
-```sh
-npm i -g @rwese/wze-websearch
-```
-
-For a self-owned install with an in-binary updater, run the signed release
-installer (Node.js 20+, no sudo):
+Install the signed release (Node.js 20+, no sudo):
 
 ```sh
 curl -fsSL https://git.void.cold.at/ai-factory/wze-websearch/raw/branch/main/scripts/install.sh | sh
@@ -137,8 +125,8 @@ Release archives and `SHA256SUMS` are published on the
 [Forgejo releases page](https://git.void.cold.at/ai-factory/wze-websearch/releases).
 `SHA256SUMS` is signed with the pinned release key; the updater verifies the
 signature before the checksum and refuses to install an artifact from an
-untrusted key. npm-managed installs are never written by the updater: it
-prints the npm upgrade command instead.
+untrusted key. An existing npm install is never written by the updater; it is
+told to reinstall from a signed release.
 
 ## Configuration and troubleshooting
 

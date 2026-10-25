@@ -1,9 +1,7 @@
 /**
- * Release sources: signed Forgejo releases for self-owned installs, and the
- * npm registry for package-manager installs.
- *
- * Forgejo drives the binary path. npm is only a read-only version source:
- * the updater never writes files owned by npm.
+ * Signed Forgejo releases for self-owned installs. npm is not a publication
+ * channel for this project; npm-detected installs are told to reinstall from a
+ * signed release rather than checked against a stale registry version.
  */
 import { fetchWithTimeout } from "../infra/fetch-timeout.js";
 import { UpdateError } from "./errors.js";
@@ -11,7 +9,6 @@ import { isStableVersion, parseVersion } from "./version.js";
 
 const FORGEJO_BASE_URL = "https://git.void.cold.at";
 const RELEASE_REPO = "ai-factory/wze-websearch";
-const NPM_PACKAGE = "@rwese/wze-websearch";
 
 export type ReleaseAsset = {
   name: string;
@@ -135,46 +132,6 @@ export class ForgejoReleaseSource implements ReleaseSource {
           throw new UpdateError(`failed to ${what}: HTTP ${response.status}`);
         }
         return Buffer.from(await response.arrayBuffer());
-      },
-    );
-  }
-}
-
-export type NpmVersionSourceOptions = {
-  registry?: string;
-  timeoutMs?: number;
-};
-
-/** Read-only npm version lookup for manager-owned installs. */
-export class NpmVersionSource {
-  private readonly registry: string;
-  private readonly timeoutMs: number;
-
-  constructor(options: NpmVersionSourceOptions = {}) {
-    this.registry = (options.registry ?? process.env.WZE_WEBSEARCH_NPM_REGISTRY ?? "https://registry.npmjs.org").replace(
-      /\/+$/,
-      "",
-    );
-    this.timeoutMs = options.timeoutMs ?? 10000;
-  }
-
-  latest(): Promise<string | undefined> {
-    const url = `${this.registry}/${NPM_PACKAGE.replace("/", "%2F")}/latest`;
-    return fetchWithTimeout(
-      url,
-      {
-        timeoutMs: this.timeoutMs,
-        mapError: (error, kind) =>
-          new UpdateError(
-            kind === "timeout"
-              ? `timed out reading the npm registry after ${this.timeoutMs}ms`
-              : `failed to read the npm registry: ${error.message}`,
-          ),
-      },
-      async (response) => {
-        if (!response.ok) throw new UpdateError(`npm registry returned HTTP ${response.status}`);
-        const body = (await response.json()) as { version?: string };
-        return body.version && isStableVersion(body.version) ? body.version : undefined;
       },
     );
   }

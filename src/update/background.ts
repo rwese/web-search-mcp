@@ -7,7 +7,7 @@
  * failure. `WZE_WEBSEARCH_NO_UPDATE_CHECK=1` disables it.
  */
 import { spawn } from "node:child_process";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { checkForUpdate, type UpdateCheck, type UpdateCheckDeps } from "./checker.js";
 import { detectInstall, type Env, type InstallContext } from "./install.js";
 
@@ -33,10 +33,6 @@ function cliScriptPath(install: InstallContext): string | undefined {
       "cli",
       "cli.js",
     );
-  }
-  if (install.kind === "npm" && install.execPath) {
-    // execPath may be surfaces/cli/cli.js or surfaces/mcp/mcp.js.
-    return join(dirname(install.execPath), "..", "cli", "cli.js");
   }
   return undefined;
 }

@@ -1,7 +1,6 @@
 /** Update eligibility: newest stable release for the install's owner. */
 import type { InstallContext } from "./install.js";
-import { NpmVersionSource, ForgejoReleaseSource, type ReleaseSource } from "./release.js";
-import { UpdateError } from "./errors.js";
+import { ForgejoReleaseSource, type ReleaseSource } from "./release.js";
 import { isNewerVersion } from "./version.js";
 
 export type UpdateCheck = {
@@ -18,11 +17,8 @@ export type UpdateCheck = {
 
 export type UpdateCheckDeps = {
   releaseSource?: ReleaseSource;
-  npmSource?: Pick<NpmVersionSource, "latest">;
   timeoutMs?: number;
 };
-
-const NPM_UPGRADE_COMMAND = "npm i -g @rwese/wze-websearch";
 
 export async function checkForUpdate(
   install: InstallContext,
@@ -68,20 +64,15 @@ export async function checkForUpdate(
   }
 
   if (install.kind === "npm") {
-    const npm = deps.npmSource ?? new NpmVersionSource({ timeoutMs: deps.timeoutMs });
-    const latest = await npm.latest();
-    if (!latest) throw new UpdateError("npm registry did not report a stable latest version");
-    const updateAvailable = isNewerVersion(latest, current);
     return {
       kind: install.kind,
       currentVersion: current,
-      latestVersion: latest,
-      updateAvailable,
+      updateAvailable: false,
       managed: true,
-      command: install.managerCommand ?? NPM_UPGRADE_COMMAND,
-      message: updateAvailable
-        ? `wze-websearch ${latest} is available (installed ${current}); update it with: ${install.managerCommand ?? NPM_UPGRADE_COMMAND}`
-        : `wze-websearch ${current} is current`,
+      command: install.installCommand,
+      message:
+        "this is an npm installation; npm releases are not published. " +
+        `Reinstall from a signed release: ${install.installCommand}`,
     };
   }
 

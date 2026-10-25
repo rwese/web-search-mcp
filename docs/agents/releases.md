@@ -1,13 +1,11 @@
 # Releases and self-updates
 
-`wze-websearch` has two distribution paths with different owners:
-
-- **npm** (`@rwese/wze-websearch`) — npm owns the installation. The updater may
-  read the registry version, but it never writes files there; it prints the
-  `npm i -g` command.
-- **Self-owned release install** — a versioned directory tree managed by
-  `scripts/install.sh` and `wze-websearch update`. Only this install kind is
-  replaced in place.
+`wze-websearch` is distributed only as signed Forgejo release installs. npm is
+**not** a publication channel: `package.json` is private, and the package is not
+published. A self-owned release install is a versioned directory tree managed by
+`scripts/install.sh` and `wze-websearch update`; only that install kind is
+replaced in place. If the updater detects an existing npm installation, it
+leaves it untouched and tells the user to reinstall from a signed release.
 
 ## Contract
 
@@ -80,8 +78,7 @@ ${XDG_DATA_HOME:-~/.local/share}/wze-websearch/install/
 
 Wrappers avoid symlinks so Windows needs no elevation. `WZE_WEBSEARCH_INSTALL_ROOT`
 and `WZE_WEBSEARCH_BIN_DIR` override the paths. The updater refuses containers,
-read-only installs, unmarked paths, and npm-managed installs; it never uses
-sudo.
+read-only installs, unmarked paths, and npm installs; it never uses sudo.
 
 ## Updater surface
 

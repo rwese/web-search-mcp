@@ -96,7 +96,7 @@ async function handleUpdate(parsed: ParsedArgs): Promise<number> {
 	if (install.kind !== "self-owned") {
 		const message =
 			install.kind === "npm"
-				? `this install is managed by npm; update it with: ${install.managerCommand}`
+				? `this is an npm installation; npm releases are not published. Reinstall from a signed release: ${install.installCommand}`
 				: install.kind === "container"
 					? "this install is inside a container; update the image instead"
 					: "this is not a self-owned release install; use the release installer";

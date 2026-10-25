@@ -32,13 +32,15 @@ describe("update checks", () => {
 		expect(check.message).toContain("0.9.0");
 	});
 
-	it("reports an npm-managed install with the package manager command, not a swap", async () => {
-		const check = await checkForUpdate(
-			{ ...install, kind: "npm", managerCommand: "npm i -g @rwese/wze-websearch" },
-			{ npmSource: { latest: async () => "0.9.0" } },
-		);
-		expect(check.updateAvailable).toBe(true);
+	it("tells npm installs to reinstall from a signed release instead of using npm", async () => {
+		const check = await checkForUpdate({
+			...install,
+			kind: "npm",
+			installCommand: "curl -fsSL https://example/install.sh | sh",
+		});
+		expect(check.updateAvailable).toBe(false);
 		expect(check.managed).toBe(true);
-		expect(check.command).toBe("npm i -g @rwese/wze-websearch");
+		expect(check.message).toContain("npm releases are not published");
+		expect(check.command).toContain("install.sh");
 	});
 });

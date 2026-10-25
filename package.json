@@ -1,6 +1,7 @@
 {
   "name": "@rwese/wze-websearch",
-  "version": "0.8.0",
+  "version": "0.8.1",
+  "private": true,
   "license": "MIT",
   "author": "rwese",
   "type": "module",
@@ -57,9 +58,6 @@
   "engines": {
     "node": ">=20"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-tui": "*",
@@ -112,7 +110,6 @@
     "format": "prettier --write src/ extensions/",
     "typecheck": "tsgo -p tsconfig.json",
     "build": "rm -rf dist && tsgo -p tsconfig.build.json && chmod +x dist/surfaces/cli/cli.js dist/surfaces/mcp/mcp.js",
-    "prepublishOnly": "npm run build",
     "validate": "npm run typecheck && npm run lint && npm run fallow && npm run test"
   }
 }
