@@ -1,21 +1,38 @@
 /**
- * Shared `fetch` plumbing for the outbound HTTP calls (SearXNG and the doctor's
- * LLM probe): an `AbortController` whose signal aborts after `timeoutMs`, with
- * the timer always cleared once the response handler settles.
+ * Shared `fetch` plumbing for the outbound HTTP calls (SearXNG, the doctor's
+ * LLM probe, and release downloads): an `AbortController` whose signal aborts
+ * after `timeoutMs`, with the timer always cleared once the response handler
+ * settles.
  *
- * Callers map the two failure modes to their own domain errors via `mapError`
- * and keep handling their own non-2xx cases, because those map to different
- * error types per caller.
+ * The signal covers the response handler too, so a timeout during a slow body
+ * read (the release archive is the largest object we fetch) surfaces as a
+ * timeout rather than a raw `AbortError`. Callers map the two transport
+ * failure modes to their own domain errors via `mapError` and keep handling
+ * their own non-2xx cases, because those map to different error types per
+ * caller.
  */
 export type FetchFailureKind = "timeout" | "network";
 
 export type FetchWithTimeoutOptions = {
   timeoutMs: number;
-  /** Map a thrown `fetch` error (or abort) to the caller's domain error. */
+  /** Map a transport failure (abort or network error) to the caller's domain error. */
   mapError: (error: Error, kind: FetchFailureKind) => Error;
   /** Extra `fetch` init; the helper supplies the abort signal. */
   init?: Omit<NonNullable<Parameters<typeof fetch>[1]>, "signal">;
+  /** `fetch` implementation; defaults to the global one. Tests inject a fake. */
+  fetchImpl?: typeof fetch;
 };
+
+/**
+ * Classify a transport failure. Errors raised by the response handler itself
+ * are the caller's own domain errors and return `undefined` so they pass
+ * through untouched.
+ */
+function transportFailure(error: Error, aborted: boolean): FetchFailureKind | undefined {
+  if (aborted || error.name === "AbortError" || error.name === "TimeoutError") return "timeout";
+  if (error.name === "TypeError") return "network";
+  return undefined;
+}
 
 /**
  * Run `fetch` under a timeout, then hand the response to `onResponse` before
@@ -29,15 +46,24 @@ export async function fetchWithTimeout<T>(
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+  const doFetch = options.fetchImpl ?? fetch;
   try {
     let response: Response;
     try {
-      response = await fetch(url, { ...options.init, signal: controller.signal });
+      response = await doFetch(url, { ...options.init, signal: controller.signal });
     } catch (err) {
       const error = err as Error;
       throw options.mapError(error, error.name === "AbortError" ? "timeout" : "network");
     }
-    return await onResponse(response);
+
+    try {
+      return await onResponse(response);
+    } catch (err) {
+      const error = err as Error;
+      const kind = transportFailure(error, controller.signal.aborted);
+      if (!kind) throw error;
+      throw options.mapError(error, kind);
+    }
   } finally {
     clearTimeout(timer);
   }

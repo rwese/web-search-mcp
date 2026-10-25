@@ -92,9 +92,26 @@ read-only installs, unmarked paths, and npm installs; it never uses sudo.
   startup. TTY-only, cache-free, silent on failure, one stderr line when a
   newer release exists. `WZE_WEBSEARCH_NO_UPDATE_CHECK=1` disables it.
 
+## Network budgets
+
+- The release list keeps a 10 s budget; that is an API call, not a body.
+- One asset download gets `max(60 s, size / 128 KiB/s)`, so the ~22 MB
+  portable archive is not held to an API-call wall clock. Budgets live in
+  `src/update/release.ts` (`downloadBudgetMs`).
+- `fetchWithTimeout` (`src/infra/fetch-timeout.ts`) runs the response handler
+  under the same abort signal as the request. An abort while streaming the
+  body maps to the caller's timeout error, e.g.
+  `timed out trying to download wze-websearch_0.8.1_any.tar.gz after 172712ms;
+  retry the update, or reinstall from a signed release`, instead of escaping
+  as a raw `AbortError` (`unexpected error: This operation was aborted`).
+  Errors the handler raises itself pass through unchanged.
+
 ## Tests
 
 `test/update/` covers SSHSIG verification, version ordering, archive traversal,
 checksum failures, untrusted keys, lock contention, successful update,
 downgrade refusal, and rollback. Updater tests build fixture tar archives and
 sign them with a throwaway Ed25519 key; no network or external signer is used.
+`test/update/release.test.ts` and `test/infra/fetch-timeout.test.ts` pin the
+download budgets and the timeout mapping for both the request and the body-read
+phase, using injected `fetch` fakes.

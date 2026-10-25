@@ -10,6 +10,32 @@ import { isStableVersion, parseVersion } from "./version.js";
 const FORGEJO_BASE_URL = "https://git.void.cold.at";
 const RELEASE_REPO = "ai-factory/wze-websearch";
 
+/** Budget for the release-list API call: a small JSON response. */
+const DEFAULT_LIST_TIMEOUT_MS = 10000;
+/** Floor for one asset download, so a tiny checksum file is not given less. */
+const DEFAULT_DOWNLOAD_TIMEOUT_MS = 60000;
+/**
+ * Slowest per-asset throughput we still call healthy. The portable archive is
+ * ~22 MB, so a wall-clock budget that fits an API call would abort a live
+ * transfer on a slow link; large assets earn a size-aware extension instead.
+ */
+const MIN_DOWNLOAD_BYTES_PER_SECOND = 128 * 1024;
+/** What a failed asset transfer tells the user to do next. */
+const RETRY_HINT = "retry the update, or reinstall from a signed release";
+
+/**
+ * Wall-clock budget for one asset: `floorMs` for small files, extended in
+ * proportion to `sizeBytes` for bodies too large to finish at
+ * `MIN_DOWNLOAD_BYTES_PER_SECOND` within the floor.
+ */
+export function downloadBudgetMs(
+  sizeBytes: number | undefined,
+  floorMs: number = DEFAULT_DOWNLOAD_TIMEOUT_MS,
+): number {
+  if (!sizeBytes || sizeBytes <= 0) return floorMs;
+  return Math.max(floorMs, Math.ceil((sizeBytes * 1000) / MIN_DOWNLOAD_BYTES_PER_SECOND));
+}
+
 export type ReleaseAsset = {
   name: string;
   url: string;
@@ -31,7 +57,10 @@ export type ReleaseSource = {
 export type ReleaseClientOptions = {
   baseUrl?: string;
   repo?: string;
+  /** Budget for the release-list API call. */
   timeoutMs?: number;
+  /** Floor for a single asset download; large assets get a size-aware extension. */
+  downloadTimeoutMs?: number;
   fetchImpl?: typeof fetch;
 };
 
@@ -65,6 +94,7 @@ export class ForgejoReleaseSource implements ReleaseSource {
   private readonly baseUrl: string;
   private readonly repo: string;
   private readonly timeoutMs: number;
+  private readonly downloadTimeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: ReleaseClientOptions = {}) {
@@ -73,7 +103,8 @@ export class ForgejoReleaseSource implements ReleaseSource {
       "",
     );
     this.repo = options.repo ?? RELEASE_REPO;
-    this.timeoutMs = options.timeoutMs ?? 10000;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_LIST_TIMEOUT_MS;
+    this.downloadTimeoutMs = options.downloadTimeoutMs ?? DEFAULT_DOWNLOAD_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -102,11 +133,16 @@ export class ForgejoReleaseSource implements ReleaseSource {
   }
 
   download(asset: ReleaseAsset): Promise<Buffer> {
-    return this.bytes(asset.url, `download ${asset.name}`);
+    return this.bytes(
+      asset.url,
+      `download ${asset.name}`,
+      downloadBudgetMs(asset.size, this.downloadTimeoutMs),
+      RETRY_HINT,
+    );
   }
 
   private async json<T>(url: string): Promise<T> {
-    const text = await this.bytes(url, "read the release list");
+    const text = await this.bytes(url, "read the release list", this.timeoutMs);
     try {
       return JSON.parse(text.toString("utf8")) as T;
     } catch {
@@ -114,17 +150,18 @@ export class ForgejoReleaseSource implements ReleaseSource {
     }
   }
 
-  private bytes(url: string, what: string): Promise<Buffer> {
+  private bytes(url: string, what: string, timeoutMs: number, hint?: string): Promise<Buffer> {
     return fetchWithTimeout(
       url,
       {
-        timeoutMs: this.timeoutMs,
+        timeoutMs,
+        fetchImpl: this.fetchImpl,
         init: { headers: { Accept: "application/json" } },
         mapError: (error, kind) =>
           new UpdateError(
             kind === "timeout"
-              ? `timed out trying to ${what} after ${this.timeoutMs}ms`
-              : `failed to ${what}: ${error.message}`,
+              ? `timed out trying to ${what} after ${timeoutMs}ms${hint ? `; ${hint}` : ""}`
+              : `failed to ${what}: ${error.message}${hint ? `; ${hint}` : ""}`,
           ),
       },
       async (response) => {
