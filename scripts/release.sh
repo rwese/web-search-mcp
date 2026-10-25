@@ -180,8 +180,11 @@ api() {
 }
 
 log "creating or realigning the draft release $TAG"
-EXISTING="$(api GET "$API/releases/tags/$TAG" || true)"
-NOTES="$(git tag -l --format='%(contents)' "$TAG")"
+# The tag-by-name endpoint hides drafts; list and filter so a retry after a
+# failed upload finds and repairs the existing draft.
+RELEASES="$(api GET "$API/releases?limit=50")"
+EXISTING="$(jq -c --arg tag "$TAG" '[.[] | select(.tag_name == $tag)][0] // empty' <<<"$RELEASES")"
+NOTES="$(git tag -l --format='%(contents:subject)' "$TAG"; printf '\n'; git tag -l --format='%(contents:body)' "$TAG")"
 BODY_JSON="$(printf '%s' "$NOTES" | jq -Rs .)"
 
 if ! jq -e '.id' >/dev/null 2>&1 <<<"$EXISTING"; then
@@ -196,7 +199,7 @@ else
     for name in "$ASSET" BUILDINFO.txt SHA256SUMS SHA256SUMS.sig; do
       url="$(jq -r --arg name "$name" '.[] | select(.name==$name) | .browser_download_url' <<<"$ASSETS")"
       [[ -n "$url" && "$url" != null ]] || die "published release $TAG is missing $name; refusing to top it up"
-      curl -fsSL "$url" -o "$WORK/published-$name"
+      curl -fsSL "${AUTH[@]}" "$url" -o "$WORK/published-$name"
       [[ "$(sha256sum "$WORK/published-$name" | cut -d' ' -f1)" == "$(sha256sum "$WORK/$name" | cut -d' ' -f1)" ]] \
         || die "published asset $name differs from the build; published bytes are immutable"
     done
@@ -216,7 +219,7 @@ upload_asset() {
   local existing url
   existing="$(api GET "$API/releases/$RELEASE_ID/assets" | jq -r --arg name "$name" '.[] | select(.name==$name) | .browser_download_url')"
   if [[ -n "$existing" && "$existing" != null ]]; then
-    curl -fsSL "$existing" -o "$WORK/existing-$name"
+    curl -fsSL "${AUTH[@]}" "$existing" -o "$WORK/existing-$name"
     [[ "$(sha256sum "$WORK/existing-$name" | cut -d' ' -f1)" == "$(sha256sum "$WORK/$name" | cut -d' ' -f1)" ]] \
       || die "asset $name already exists with different bytes; refusing to replace a version's artifact"
     log "asset $name already present with identical bytes"
@@ -238,7 +241,7 @@ ASSETS="$(api GET "$API/releases/$RELEASE_ID/assets")"
 for name in "$ASSET" BUILDINFO.txt SHA256SUMS SHA256SUMS.sig; do
   url="$(jq -r --arg name "$name" '.[] | select(.name==$name) | .browser_download_url' <<<"$ASSETS")"
   [[ -n "$url" && "$url" != null ]] || die "asset $name is missing after upload"
-  curl -fsSL "$url" -o "$WORK/verify-$name"
+  curl -fsSL "${AUTH[@]}" "$url" -o "$WORK/verify-$name"
   [[ "$(sha256sum "$WORK/verify-$name" | cut -d' ' -f1)" == "$(sha256sum "$WORK/$name" | cut -d' ' -f1)" ]] \
     || die "uploaded asset $name does not match the build"
 done

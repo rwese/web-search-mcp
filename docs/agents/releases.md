@@ -34,7 +34,9 @@
 - Public key and principal: `.forgejo/allowed_signers` and
   `src/update/trust.ts` (`wze-websearch-release`).
 - Private key: cold-at vault `wze-websearch/release-signing-key`, and Forgejo
-  repository secret `RELEASE_SIGNING_KEY` (multiline private key).
+  repository secret `RELEASE_SIGNING_KEY` (multiline private key). Read it with
+  `gopass show -n wze-websearch/release-signing-key`; `gopass show -o` returns
+  only the first line and stores an unusable secret.
 - Publishing token: org secret `RELEASE_TOKEN`; falls back to the workflow
   token (`GITEA_TOKEN`) and fails with a `tea actions secrets create` hint when
   neither exists.
