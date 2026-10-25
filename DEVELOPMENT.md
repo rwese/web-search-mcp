@@ -12,6 +12,12 @@ pnpm build      # emit dist/ (bins get chmod +x)
 pnpm test       # vitest run only
 ```
 
+pnpm is pinned by `packageManager` in `package.json`; run `corepack enable`
+(or install the matching pnpm) rather than relying on whatever pnpm is on
+`PATH`. A clean `pnpm install --frozen-lockfile` reports ignored build scripts
+for `esbuild`, `koffi`, `protobufjs`, and `@google/genai` — that warning is
+expected and does not affect the gates.
+
 ## Layout
 
 - `src/index.ts` — barrel only, no logic. The deep seam is `src/core/`;

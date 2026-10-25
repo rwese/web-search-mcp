@@ -26,17 +26,21 @@ jobs:
     container:
       image: node:22-bookworm
     steps:
-      - name: Install release tooling
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends ca-certificates curl git gzip jq openssh-client tar
-          npm install -g pnpm@10
-
       - name: Check out the repository
         uses: https://data.forgejo.org/actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Install release tooling
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git gzip jq openssh-client tar
+          # package.json's packageManager field is the single source of the
+          # pnpm version; never hardcode a second copy here.
+          PNPM_VERSION="$(jq -r '.packageManager | sub("^pnpm@"; "")' package.json)"
+          npm install -g "pnpm@$PNPM_VERSION"
+          pnpm --version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store

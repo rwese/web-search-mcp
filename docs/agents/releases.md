@@ -29,9 +29,14 @@ leaves it untouched and tells the user to reinstall from a signed release.
 
 ## Package manager
 
-Development, CI, and every `package.json` script use **pnpm** (`pnpm validate`,
-`pnpm build`), with `pnpm-lock.yaml` as the dev lockfile. The one exception is
-the release staging step in `scripts/release.sh`: it runs `npm ci --omit=dev`
+Development, CI, and every `package.json` script use **pnpm**, pinned to one
+version by `packageManager` in `package.json` (`pnpm@11.25.0`); the release
+workflow reads that field instead of hardcoding a version, so local, CI, and
+release builds cannot drift. This is a single-project repo: there is no
+`pnpm-workspace.yaml`, and `pnpm-lock.yaml` is the dev lockfile.
+
+The one exception is the release staging step in `scripts/release.sh`: it runs
+`npm ci --omit=dev`
 inside the staging directory because the archive must contain a flat,
 symlink-free `node_modules/`, and pnpm's linked store layout is rejected by the
 archive contract. That is why `package-lock.json` is committed and must be

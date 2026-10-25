@@ -5,6 +5,7 @@
   "license": "MIT",
   "author": "rwese",
   "type": "module",
+  "packageManager": "pnpm@11.25.0",
   "description": "Agent-agnostic web search: a SearXNG-backed search core shared by a CLI, an MCP server, and a pi extension wrapper.",
   "homepage": "https://git.void.cold.at/ai-factory/wze-websearch",
   "repository": {
