@@ -45,8 +45,9 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
 
 - `CONTEXT.md` — domain glossary. Use its terms; extend it when a term is
   resolved.
-- `docs/agents/issue-tracker.md` — Forgejo tracker ops (API recipes, claiming,
-  frontier). Reach when working issues.
+- `docs/agents/issue-tracker.md` — Forgejo tracker ops: the claim → fix →
+  validate → signed commit → resolution-comment → close loop, API recipes, and
+  the wayfinder frontier. Reach when working any issue.
 - `docs/agents/agentic-loop.md` — the `--use-ai` architecture, footnote
   contract, and live smoke-test recipe. Reach when touching `src/ai/agent.ts` or
   running AI tests.
