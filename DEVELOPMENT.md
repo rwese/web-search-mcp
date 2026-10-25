@@ -23,6 +23,13 @@ pnpm test       # vitest run only
   (`resolveMaxResults`, `resolveMaxAgentSearches`). Prompt and footnote
   rules live here.
 - `src/diagnostics/doctor.ts` — `--doctor` setup checks.
+- `src/update/` — release installs: `install` (layout, ownership, wrappers),
+  `checker` (release eligibility), `release` (Forgejo/npm version sources),
+  `ssh-signature` (pinned-key verification), `archive` (safe tar extraction),
+  `updater` (lock, verify, stage, probe, swap, rollback), `background` (TTY-only
+  check). Release pipeline: `scripts/release.sh`; bootstrap: `scripts/install.sh`;
+  workflow: `.forgejo/workflows/release.yml`; trust root:
+  `.forgejo/allowed_signers` + `src/update/trust.ts`.
 - `src/surfaces/cli/` (`cli`, `args`), `src/surfaces/mcp/` (`mcp`, `server`,
   `http`, `stdio`, `constants`), `src/surfaces/pi/` (`tool`).
 - `extensions/` — thin pi wrapper around `src/surfaces/pi/tool.ts`.
@@ -74,5 +81,7 @@ key — only the first line is valid). Exit `0` only when every check passes.
   frontier).
 - `docs/agents/agentic-loop.md` — the AI loop architecture, footnote
   contract, and live smoke-test recipe.
+- `docs/agents/releases.md` — signed release pipeline, updater layout, key
+  rotation, and installer checks.
 - `research/*` branches, `test/` — prior API findings (SearXNG, MCP SDK, pi
   contract) and expected behavior; read before changing a seam.

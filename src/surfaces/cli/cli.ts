@@ -28,6 +28,10 @@ import { parseArgs, USAGE, type ParsedArgs } from "./args.js";
 import { createProgressReporter } from "./progress.js";
 import { version } from "../../version.js";
 import { defaultConfig, xdgConfigPath } from "../../infra/config.js";
+import { checkForUpdate, type UpdateCheck } from "../../update/checker.js";
+import { maybeCheckForUpdatesInBackground, runBackgroundCheck } from "../../update/background.js";
+import { detectInstall, type InstallContext } from "../../update/install.js";
+import { performUpdate } from "../../update/updater.js";
 
 loadDotenv({ path: `${process.cwd()}/.env` });
 
@@ -62,6 +66,63 @@ function handleDefaultConfig(): number {
 	process.stdout.write(`${JSON.stringify(defaultConfig(), null, 2)}\n`);
 	process.stderr.write(`Config file: ${xdgConfigPath()}\n`);
 	return 0;
+}
+
+function renderUpdateCheck(check: UpdateCheck): void {
+	process.stdout.write(`${check.message}\n`);
+}
+
+async function handleUpdate(parsed: ParsedArgs): Promise<number> {
+	const install: InstallContext = detectInstall();
+	if (parsed.updateBackground) {
+		await runBackgroundCheck(install);
+		return 0;
+	}
+
+	if (parsed.updateCheck) {
+		try {
+			const check = await checkForUpdate(install);
+			if (parsed.json) {
+				process.stdout.write(`${JSON.stringify(check, null, 2)}\n`);
+			} else {
+				renderUpdateCheck(check);
+			}
+			return check.updateAvailable ? 10 : 0;
+		} catch (err) {
+			return failRuntime(err);
+		}
+	}
+
+	if (install.kind !== "self-owned") {
+		const message =
+			install.kind === "npm"
+				? `this install is managed by npm; update it with: ${install.managerCommand}`
+				: install.kind === "container"
+					? "this install is inside a container; update the image instead"
+					: "this is not a self-owned release install; use the release installer";
+		process.stderr.write(`error: ${message}\n`);
+		return 1;
+	}
+
+	try {
+		const result = await performUpdate({
+			install,
+			...(parsed.allowDowngrade ? { allowDowngrade: true } : {}),
+			...(parsed.rollback ? { rollback: true } : {}),
+		});
+		if (parsed.json) {
+			process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+		} else if (result.status === "current") {
+			process.stdout.write(`wze-websearch ${result.from} is current\n`);
+		} else if (result.status === "rolled-back") {
+			process.stdout.write(`rolled back ${result.from} -> ${result.to} (${result.installPath})\n`);
+		} else {
+			process.stdout.write(`updated ${result.from} -> ${result.to} (${result.installPath})\n`);
+		}
+		return 0;
+	} catch (err) {
+		return failRuntime(err);
+	}
 }
 
 async function handleDoctor(parsed: ParsedArgs): Promise<number> {
@@ -218,8 +279,11 @@ async function run(): Promise<number> {
 
 	if (parsed.help) return handleHelp();
 	if (parsed.version) return handleVersion();
+	if (parsed.update) return await handleUpdate(parsed);
 	if (parsed.defaultConfig) return handleDefaultConfig();
 	if (parsed.doctor) return await handleDoctor(parsed);
+
+	if (parsed.query || parsed.sessionId) maybeCheckForUpdatesInBackground();
 
 	const sessionId = parsed.sessionId;
 	if (sessionId) return await handleSession(parsed, sessionId);

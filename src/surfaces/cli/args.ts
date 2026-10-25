@@ -10,6 +10,8 @@ Usage:
   wze-websearch --default-config
   wze-websearch --help
   wze-websearch --version
+  wze-websearch update [--check] [--json]
+  wze-websearch update --rollback
 
 Flags:
   --categories <csv>   restrict to categories (e.g. general,news)
@@ -29,7 +31,13 @@ Flags:
   --help               show this help
   --version            print the version and exit
 
-Exit codes: 0 ok (even empty results; for --doctor: all checks passed), 1 runtime error (or --doctor found issues), 2 usage.`;
+Update:
+  wze-websearch update            install the newest stable release (self-owned install)
+  wze-websearch update --check    report current/latest without changing anything
+  wze-websearch update --rollback switch back to the previously installed version
+  --allow-downgrade                permit update to a lower version (explicit only)
+
+Exit codes: 0 ok (even empty results; for --doctor: all checks passed), 1 runtime error (or --doctor found issues), 2 usage. For update --check: 0 current, 10 update available, 1 error.`;
 
 export type ParsedArgs = {
 	help?: boolean;
@@ -42,6 +50,11 @@ export type ParsedArgs = {
 	debug?: boolean;
 	doctor?: boolean;
 	defaultConfig?: boolean;
+	update?: boolean;
+	updateCheck?: boolean;
+	updateBackground?: boolean;
+	allowDowngrade?: boolean;
+	rollback?: boolean;
 	options: SearchOptions;
 };
 
@@ -179,6 +192,8 @@ function validateArgs(args: ParsedArgs): void {
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
+	if (argv[0] === "update") return parseUpdateArgs(argv.slice(1));
+
 	const state: ArgState = { options: {}, positionals: [] };
 
 	for (let i = 0; i < argv.length; i += 1) {
@@ -208,5 +223,37 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	const query = positionals.join(" ").trim() || undefined;
 	const args: ParsedArgs = { ...rest, query };
 	validateArgs(args);
+	return args;
+}
+
+/** `update` is a command, so it reserves the bare word `update` as argv[0]. */
+function parseUpdateArgs(argv: string[]): ParsedArgs {
+	const args: ParsedArgs = { update: true, options: {} };
+	for (const arg of argv) {
+		switch (arg) {
+			case "--check":
+				args.updateCheck = true;
+				break;
+			case "--background":
+				args.updateBackground = true;
+				break;
+			case "--allow-downgrade":
+				args.allowDowngrade = true;
+				break;
+			case "--rollback":
+				args.rollback = true;
+				break;
+			case "--json":
+				args.json = true;
+				break;
+			case "--help":
+				args.help = true;
+				break;
+			default:
+				fail(`unknown update flag ${arg}`);
+		}
+	}
+	if (args.rollback && args.updateCheck) fail("pass either --rollback or --check, not both");
+	if (args.rollback && args.allowDowngrade) fail("--allow-downgrade applies to update, not --rollback");
 	return args;
 }

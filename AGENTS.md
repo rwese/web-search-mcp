@@ -50,5 +50,8 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
 - `docs/agents/agentic-loop.md` — the `--use-ai` architecture, footnote
   contract, and live smoke-test recipe. Reach when touching `src/ai/agent.ts` or
   running AI tests.
+- `docs/agents/releases.md` — signed release pipeline, self-owned install layout,
+  and updater trust/rollback rules. Reach when touching `src/update/`,
+  `scripts/release.sh`, or `.forgejo/workflows/release.yml`.
 - `research/*` branches, `test/` — prior API findings (SearXNG, MCP SDK, pi
   contract) and expected behavior; read before changing a seam.

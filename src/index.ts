@@ -29,3 +29,10 @@ export type {
   TimeRange,
 } from "./core/types.js";
 export { SearchError, SearxngError, SearchTimeout, SearchUnavailable, SearchVolumeExhausted } from "./core/errors.js";
+export { checkForUpdate } from "./update/checker.js";
+export type { UpdateCheck, UpdateCheckDeps } from "./update/checker.js";
+export { detectInstall, resolveInstallRoot } from "./update/install.js";
+export type { InstallContext, InstallKind } from "./update/install.js";
+export { performUpdate } from "./update/updater.js";
+export type { UpdateOptions, UpdateResult } from "./update/updater.js";
+export { UpdateBusy, UpdateError, UpdateUnsupported } from "./update/errors.js";

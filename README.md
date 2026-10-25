@@ -103,6 +103,43 @@ Once a model and API key are configured, new CLI searches use AI by default.
 Pass `--no-ai` for raw results. Saved sessions stay raw unless you pass
 `--use-ai`, for example `wze-websearch --session <id> --use-ai`.
 
+## Updates
+
+Installing with npm keeps npm in charge of upgrades:
+
+```sh
+npm i -g @rwese/wze-websearch
+```
+
+For a self-owned install with an in-binary updater, run the signed release
+installer (Node.js 20+, no sudo):
+
+```sh
+curl -fsSL https://git.void.cold.at/ai-factory/wze-websearch/raw/branch/main/scripts/install.sh | sh
+```
+
+It installs versions under `${XDG_DATA_HOME:-~/.local/share}/wze-websearch/install`
+and writes `wze-websearch` / `wze-websearch-mcp` wrappers to `~/.local/bin`.
+Then:
+
+```sh
+wze-websearch update --check   # 0 = current, 10 = update available, 1 = error
+wze-websearch update           # verify signature + checksum, probe, swap
+wze-websearch update --rollback
+```
+
+Self-owned installs also check for a newer release in the background after a
+CLI search or `--doctor`, and once at MCP startup. The notice is written to
+stderr, only when stderr is a terminal, and is never cached. Disable it with
+`WZE_WEBSEARCH_NO_UPDATE_CHECK=1`.
+
+Release archives and `SHA256SUMS` are published on the
+[Forgejo releases page](https://git.void.cold.at/ai-factory/wze-websearch/releases).
+`SHA256SUMS` is signed with the pinned release key; the updater verifies the
+signature before the checksum and refuses to install an artifact from an
+untrusted key. npm-managed installs are never written by the updater: it
+prints the npm upgrade command instead.
+
 ## Configuration and troubleshooting
 
 `SEARXNG_URL` is the only required setting. The CLI and MCP server also load

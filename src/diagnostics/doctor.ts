@@ -23,6 +23,8 @@ import {
   type InstanceConfig,
 } from "../infra/searxng.js";
 import { SearchError } from "../core/errors.js";
+import { checkForUpdate, type UpdateCheck } from "../update/checker.js";
+import { detectInstall } from "../update/install.js";
 
 export type DoctorCheck = {
   name: string;
@@ -45,6 +47,7 @@ export type DoctorDeps = {
   probeSearch?: (baseUrl: string, timeoutMs: number) => Promise<{ results: number; unresponsive: number }>;
   probeLlm?: (baseUrl: string, apiKey: string, timeoutMs: number) => Promise<string>;
   checkStoreDir?: (dir: string) => Promise<void>;
+  checkUpdate?: () => Promise<UpdateCheck>;
 };
 
 export type DoctorOptions = {
@@ -242,6 +245,19 @@ async function checkLlm(
   }
 }
 
+async function checkUpdates(deps: DoctorDeps, checks: DoctorCheck[]): Promise<void> {
+  try {
+    const check = await (deps.checkUpdate ?? (() => checkForUpdate(detectInstall())))();
+    checks.push({ name: "update", ok: true, detail: check.message });
+  } catch (err) {
+    checks.push({
+      name: "update",
+      ok: true,
+      detail: `update check unavailable: ${(err as Error).message}`,
+    });
+  }
+}
+
 /**
  * Run every setup check and return the report. Overall `ok` is true only
  * when every check passes. A failed config check returns early — nothing
@@ -262,6 +278,7 @@ export async function runDoctor(opts: DoctorOptions = {}): Promise<DoctorReport>
   checkEngines(instance, checks);
   await checkSearch(deps, config, debug, checks);
   await checkLlm(deps, config, debug, checks);
+  await checkUpdates(deps, checks);
 
   debug.log("doctor", "report", { ok: checks.every((c) => c.ok), checks: checks.length });
   return { ok: checks.every((c) => c.ok), checks };

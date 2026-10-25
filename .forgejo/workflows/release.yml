@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag, for example v0.8.0'
+        required: true
+      publish:
+        description: 'Attach and publish assets'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: docker
+    container:
+      image: node:22-bookworm
+    steps:
+      - name: Install release tooling
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git gzip jq openssh-client tar
+          npm install -g pnpm@10
+
+      - name: Check out the repository
+        uses: https://data.forgejo.org/actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store
+
+      - name: Resolve and check out the tagged commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "invalid version $VERSION"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.publish }}" == "true" ]]; then
+            echo "PUBLISH=--publish" >> "$GITHUB_ENV"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "PUBLISH=--publish" >> "$GITHUB_ENV"
+          else
+            echo "PUBLISH=" >> "$GITHUB_ENV"
+          fi
+          git fetch --force origin "+refs/tags/v$VERSION:refs/tags/v$VERSION"
+          git -c advice.detachedHead=false checkout "refs/tags/v$VERSION"
+          # actions/checkout peels tags; restore the annotated tag object.
+          git fetch --force origin "+refs/tags/v$VERSION:refs/tags/v$VERSION"
+          test "$(git cat-file -t "refs/tags/v$VERSION")" = tag
+
+      - name: Verify the signed tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git -c gpg.ssh.allowedSignersFile=.forgejo/allowed_signers verify-tag "v$VERSION"
+
+      - name: Build, verify, and publish
+        shell: bash
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: ./scripts/release.sh "$VERSION" $PUBLISH

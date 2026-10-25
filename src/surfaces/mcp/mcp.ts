@@ -16,8 +16,11 @@ import { config as loadDotenv } from "dotenv";
 import { DEFAULT_PORT } from "./constants.js";
 import { runHttp } from "./http.js";
 import { runStdio } from "./stdio.js";
+import { maybeCheckForUpdatesInBackground } from "../../update/background.js";
 
 loadDotenv({ path: `${process.cwd()}/.env` });
+
+maybeCheckForUpdatesInBackground();
 
 const httpIndex = process.argv.indexOf("--http");
 if (httpIndex >= 0) {

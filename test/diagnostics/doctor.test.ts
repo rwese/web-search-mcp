@@ -26,6 +26,14 @@ function okDeps(extra: Record<string, unknown> = {}) {
 		fetchConfig: async () => INSTANCE,
 		probeSearch: async () => ({ results: 3, unresponsive: 1 }),
 		checkStoreDir: async () => {},
+		checkUpdate: async () => ({
+			kind: "self-owned" as const,
+			currentVersion: "0.8.0",
+			latestVersion: "0.8.0",
+			updateAvailable: false,
+			managed: false,
+			message: "wze-websearch 0.8.0 is current",
+		}),
 		...extra,
 	};
 }
@@ -41,6 +49,7 @@ describe("runDoctor", () => {
 			"engines",
 			"search",
 			"llm",
+			"update",
 		]);
 		expect(report.checks.every((c) => c.ok)).toBe(true);
 		expect(report.checks.find((c) => c.name === "llm")?.detail).toContain("skipped");

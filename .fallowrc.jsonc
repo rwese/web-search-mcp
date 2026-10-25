@@ -3,5 +3,29 @@
   // pi loads this extension from package.json's "pi.extensions" field, which
   // fallow's package.json parser does not read — declare it as an entry point
   // so its transitive imports are not reported as unused.
-  "entry": ["extensions/index.ts"]
+  "entry": ["extensions/index.ts"],
+  // The test signer deliberately mirrors the SSHSIG string encoding used by
+  // the verifier; sharing source code with tests would weaken the fixture.
+  "duplicates": {
+    "ignore": ["test/update/signature.ts"]
+  },
+  // Update/install surfaces enumerate ownership, version, and rollback states.
+  // Keep the global gates and grant only these files a higher ceiling.
+  "health": {
+    "thresholdOverrides": [
+      {
+        "files": ["src/update/install.ts", "src/update/updater.ts", "src/update/checker.ts"],
+        "maxCyclomatic": 25,
+        "maxCognitive": 25,
+        "reason": "install detection and update ordering branch on explicit ownership/verification states"
+      },
+      {
+        "files": ["src/surfaces/cli/cli.ts", "src/surfaces/cli/args.ts"],
+        "maxCyclomatic": 25,
+        "maxCognitive": 25,
+        "maxCrap": 70,
+        "reason": "CLI command dispatch and flag validation are deliberately explicit; covered by tests"
+      }
+    ]
+  }
 }

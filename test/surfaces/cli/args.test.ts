@@ -14,4 +14,16 @@ describe("parseArgs", () => {
 		expect(parseArgs(["toString", "--json"])).toMatchObject({ query: "toString", json: true });
 		expect(parseArgs(["--language", "en", "valueOf"]).query).toBe("valueOf");
 	});
+
+	it("parses the update command and its flags", () => {
+		expect(parseArgs(["update"])).toMatchObject({ update: true, options: {} });
+		expect(parseArgs(["update", "--check", "--json"])).toMatchObject({
+			update: true,
+			updateCheck: true,
+			json: true,
+		});
+		expect(parseArgs(["update", "--rollback"])).toMatchObject({ update: true, rollback: true });
+		expect(() => parseArgs(["update", "--check", "--rollback"])).toThrow(/either/);
+		expect(() => parseArgs(["update", "query"])).toThrow(/unknown update flag/);
+	});
 });
