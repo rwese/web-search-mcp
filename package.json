@@ -110,6 +110,6 @@
     "format": "prettier --write src/ extensions/",
     "typecheck": "tsgo -p tsconfig.json",
     "build": "rm -rf dist && tsgo -p tsconfig.build.json && chmod +x dist/surfaces/cli/cli.js dist/surfaces/mcp/mcp.js",
-    "validate": "npm run typecheck && npm run lint && npm run fallow && npm run test"
+    "validate": "pnpm run typecheck && pnpm run lint && pnpm run fallow && pnpm run test"
   }
 }

@@ -84,6 +84,8 @@ mkdir -p "$STAGE"
 cp package.json package-lock.json README.md LICENSE "$STAGE/"
 
 log "installing production dependencies (portable set)"
+# Deliberately npm, not pnpm: the archive needs a flat, symlink-free tree, and
+# pnpm's store layout uses links that the updater and archive contract reject.
 (
   cd "$STAGE"
   npm ci --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund

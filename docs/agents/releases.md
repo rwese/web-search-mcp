@@ -27,6 +27,18 @@ leaves it untouched and tells the user to reinstall from a signed release.
 - Extraction: only regular files/directories under `wze-websearch/`; absolute
   paths, traversal, backslashes, links, and special files abort.
 
+## Package manager
+
+Development, CI, and every `package.json` script use **pnpm** (`pnpm validate`,
+`pnpm build`), with `pnpm-lock.yaml` as the dev lockfile. The one exception is
+the release staging step in `scripts/release.sh`: it runs `npm ci --omit=dev`
+inside the staging directory because the archive must contain a flat,
+symlink-free `node_modules/`, and pnpm's linked store layout is rejected by the
+archive contract. That is why `package-lock.json` is committed and must be
+bumped with `package.json` (the pnpm lockfile does not record the project
+version). Do not "fix" that `npm ci` to pnpm without changing the archive
+layout and the updater's link rejection in the same change.
+
 ## Trust root
 
 - Public key and principal: `.forgejo/allowed_signers` and
