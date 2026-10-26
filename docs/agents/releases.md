@@ -23,7 +23,11 @@ leaves it untouched and tells the user to reinstall from a signed release.
 - Publication boundary: the release is created as a draft, every asset is
   uploaded, and the draft is published only after all assets verify. Published
   bytes for a version are immutable; a same-named asset with different bytes
-  aborts the release.
+  aborts the release. The draft lookup searches the release list by id, not by
+  jq's exit status: jq 1.6 (Debian bookworm, the workflow container) exits 0 on
+  empty input under `-e`, which made an empty selection look like an existing
+  release and sent the script to `/releases/null/assets` (404) on the first
+  publish of every version.
 - Extraction: only regular files/directories under `wze-websearch/`; absolute
   paths, traversal, backslashes, links, and special files abort.
 

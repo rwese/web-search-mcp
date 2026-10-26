@@ -186,18 +186,23 @@ log "creating or realigning the draft release $TAG"
 # failed upload finds and repairs the existing draft.
 RELEASES="$(api GET "$API/releases?limit=50")"
 EXISTING="$(jq -c --arg tag "$TAG" '[.[] | select(.tag_name == $tag)][0] // empty' <<<"$RELEASES")"
+# Do not branch on jq's exit status: jq 1.6 on Debian bookworm exits 0 for
+# empty input under -e, so an empty selection looked like "release exists" and
+# the script asked for /releases/null/assets (404) on every first publish of a
+# version. Require a positive numeric id instead.
+EXISTING_ID="$(jq -r 'if type == "object" then (.id // empty) else empty end' <<<"${EXISTING:-null}" 2>/dev/null || true)"
 NOTES="$(git tag -l --format='%(contents:subject)' "$TAG"; printf '\n'; git tag -l --format='%(contents:body)' "$TAG")"
 BODY_JSON="$(printf '%s' "$NOTES" | jq -Rs .)"
 
-if ! jq -e '.id' >/dev/null 2>&1 <<<"$EXISTING"; then
+if [[ ! "$EXISTING_ID" =~ ^[1-9][0-9]*$ ]]; then
   RELEASE_JSON="$(jq -nc --arg tag "$TAG" --arg name "$TAG" --argjson body "$BODY_JSON" \
     '{tag_name:$tag,name:$name,body:$body,draft:true,prerelease:false}')"
   RELEASE="$(api POST "$API/releases" "$RELEASE_JSON")"
 else
-  RELEASE="$EXISTING"
+  RELEASE="$(api GET "$API/releases/$EXISTING_ID")"
   if [[ "$(jq -r '.draft // false' <<<"$RELEASE")" != true ]]; then
     log "release is already published; checking its assets"
-    ASSETS="$(api GET "$API/releases/$(jq -r '.id' <<<"$RELEASE")/assets")"
+    ASSETS="$(api GET "$API/releases/$EXISTING_ID/assets")"
     for name in "$ASSET" BUILDINFO.txt SHA256SUMS SHA256SUMS.sig; do
       url="$(jq -r --arg name "$name" '.[] | select(.name==$name) | .browser_download_url' <<<"$ASSETS")"
       [[ -n "$url" && "$url" != null ]] || die "published release $TAG is missing $name; refusing to top it up"
