@@ -32,8 +32,9 @@ expected and does not affect the gates.
 - `src/update/` — release installs: `install` (layout, ownership, wrappers),
   `checker` (release eligibility), `release` (Forgejo release source),
   `ssh-signature` (pinned-key verification), `archive` (safe tar extraction),
-  `updater` (lock, verify, stage, probe, swap, rollback), `background` (TTY-only
-  check). Release pipeline: `scripts/release.sh`; bootstrap: `scripts/install.sh`;
+  `updater` (lock, verify, stage, probe, swap, rollback), `background`
+  (TTY-independent detached check + headless self-update, throttled by
+  `update-check.stamp`). Release pipeline: `scripts/release.sh`; bootstrap: `scripts/install.sh`;
   workflow: `.forgejo/workflows/release.yml`; trust root:
   `.forgejo/allowed_signers` + `src/update/trust.ts`.
 - `src/surfaces/cli/` (`cli`, `args`), `src/surfaces/mcp/` (`mcp`, `server`,

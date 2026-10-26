@@ -88,6 +88,7 @@ ${XDG_DATA_HOME:-~/.local/share}/wze-websearch/install/
   current               active version (text, swapped atomically)
   previous              rollback version
   update.lock           exclusive updater lock
+  update-check.stamp    last background check (throttles to one per 24 h)
   versions/<version>/   dist/, node_modules/, package.json
 ~/.local/bin/wze-websearch      wrapper, reads `current`
 ~/.local/bin/wze-websearch-mcp  wrapper, reads `current`
@@ -106,8 +107,16 @@ read-only installs, unmarked paths, and npm installs; it never uses sudo.
 - `wze-websearch update --rollback` — swap to the recorded `previous` version
   after probing it.
 - Background check — after CLI searches and `--doctor`, and once at MCP
-  startup. TTY-only, cache-free, silent on failure, one stderr line when a
-  newer release exists. `WZE_WEBSEARCH_NO_UPDATE_CHECK=1` disables it.
+  startup. TTY-independent: a headless host (MCP over stdio, CI) has no
+  terminal to read a notice, so the helper applies a verified release itself
+  under the same lock/signature/checksum/probe ordering as `update`. The
+  running process keeps its old version until restart. Throttled to one check
+  per 24 h per install root by `update-check.stamp` (the marker is written
+  before the spawn, so a burst of MCP starts cannot race the release API).
+  Silent on a failed check; one stderr line after an applied update, and one
+  when an available update could not be applied. `WZE_WEBSEARCH_NO_UPDATE_CHECK=1`
+  disables it, and the detached helper sets `WZE_WEBSEARCH_UPDATE_BACKGROUND=1`
+  to avoid recursion.
 
 ## Network budgets
 

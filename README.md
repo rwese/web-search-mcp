@@ -117,8 +117,12 @@ wze-websearch update --rollback
 ```
 
 Self-owned installs also check for a newer release in the background after a
-CLI search or `--doctor`, and once at MCP startup. The notice is written to
-stderr, only when stderr is a terminal, and is never cached. Disable it with
+CLI search or `--doctor`, and once at MCP startup — with or without a terminal,
+so MCP and other headless hosts stay current. When a newer release exists the
+background helper applies it (same signature, checksum, probe, and lock as
+`update`); the running process keeps its old version until restart. Checks are
+throttled to one per 24 h per install root, and only an applied update (or a
+failed attempt) writes a line to stderr. Disable it with
 `WZE_WEBSEARCH_NO_UPDATE_CHECK=1`.
 
 Release archives and `SHA256SUMS` are published on the

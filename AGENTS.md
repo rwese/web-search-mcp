@@ -15,6 +15,9 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
   `pnpm fallow:audit` scopes findings to the current change
 - `pnpm build` — emit `dist/` (bins get chmod +x)
 
+Commit every verified change (signed by the configured identity) and push
+`main` in the same turn; do not leave validated work uncommitted.
+
 ## Layout
 
 - `src/index.ts` — barrel only, no logic. The deep seam is `src/core/`;
