@@ -17,7 +17,9 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
 - `pnpm build` — emit `dist/` (bins get chmod +x)
 
 Commit every verified change (signed by the configured identity) and push
-`main` in the same turn; do not leave validated work uncommitted.
+`main` in the same turn; do not leave validated work uncommitted. Never leave
+an unreleased version on `main`: bump semver and publish in the same turn (see
+`docs/agents/releases.md` → Cadence).
 
 ## Layout
 

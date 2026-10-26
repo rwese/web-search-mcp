@@ -69,6 +69,26 @@ signed with the new key, then remove the old key after installed clients have
 had time to update. Never replace a published `SHA256SUMS`/archive with
 different bytes.
 
+## Cadence
+
+Ship and publish in one turn; `main` must never carry a version that is not
+published. When a change touches what users run (`src/`, `extensions/`,
+`scripts/`, `package.json`, shipped docs) bump and release it immediately:
+
+- breaking install/updater/CLI/MCP contract → major (`0.x`: still bump minor
+  and say so in the tag notes)
+- new capability → minor
+- bug fix → patch
+- comments, agent docs, tests, and CI-only plumbing do not bump on their own;
+  fold them into the next release, or into the current turn's bump when they
+  ride along with a shipped change
+
+Steps 1–3 and 4 happen back to back: commit the bump, tag it, push both, and
+watch the tag run publish. Do not push a bump and leave the tag for later, and
+do not publish from a machine while CI can (a locally built archive fails the
+later byte-identity check). Verify the published assets, then reinstall locally
+with `scripts/install.sh` so the developer machine matches `main`.
+
 ## Release steps
 
 1. Bump `package.json`, `package-lock.json`, and `src/version.ts` together in a
