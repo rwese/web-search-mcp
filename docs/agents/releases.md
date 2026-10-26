@@ -32,8 +32,12 @@ leaves it untouched and tells the user to reinstall from a signed release.
 Development, CI, and every `package.json` script use **pnpm**, pinned to one
 version by `packageManager` in `package.json` (`pnpm@11.25.0`); the release
 workflow reads that field instead of hardcoding a version, so local, CI, and
-release builds cannot drift. This is a single-project repo: there is no
-`pnpm-workspace.yaml`, and `pnpm-lock.yaml` is the dev lockfile.
+release builds cannot drift. `pnpm-workspace.yaml` exists only to hold pnpm 11
+settings — there is no `packages:` field and this is not a monorepo — and
+`pnpm-lock.yaml` is the dev lockfile. Its `strictDepBuilds: false` keeps
+unapproved dependency postinstall scripts a warning instead of the pnpm 11
+default hard error (`ERR_PNPM_IGNORED_BUILDS`), which aborted the release
+workflow at `pnpm install`; we intentionally do not run those scripts.
 
 The one exception is the release staging step in `scripts/release.sh`: it runs
 `npm ci --omit=dev`

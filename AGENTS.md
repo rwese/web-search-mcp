@@ -8,7 +8,8 @@ disk; `--use-ai` answers via a LangChain plan → search → summarize loop.
 ## Commands
 
 - `pnpm install` — deps (tsgo ships via `@typescript/native-preview`; the
-  ignored-build-scripts warning is harmless)
+  ignored-build-scripts warning is harmless; `pnpm-workspace.yaml` sets
+  `strictDepBuilds: false` so CI does not turn it into a hard error)
 - `pnpm validate` — typecheck (tsgo) + lint (eslint 9) + fallow (dead code,
   duplication, complexity) + tests (vitest); run before every commit
 - `pnpm fallow` — code-intelligence report (config in `.fallowrc.jsonc`);

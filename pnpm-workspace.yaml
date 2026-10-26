@@ -1,0 +1,15 @@
+allowBuilds:
+  '@google/genai': set this to true or false
+  esbuild: set this to true or false
+  koffi: set this to true or false
+  protobufjs: set this to true or false
+# pnpm 11 settings live here, not in package.json/.npmrc.
+#
+# This is a single-project repo: there is no `packages:` field, the file exists
+# only to hold configuration. pnpm 11 made unapproved dependency build scripts
+# a hard error (ERR_PNPM_IGNORED_BUILDS) instead of a warning, which aborted the
+# release workflow at `pnpm install`. We deliberately do not run those
+# postinstall scripts — the release archive is staged with `npm ci --omit=dev`
+# and the test/build gates pass without them — so keep the pre-11 behaviour:
+# skip and warn, never fail.
+strictDepBuilds: false
