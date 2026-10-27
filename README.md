@@ -123,7 +123,13 @@ background helper applies it (same signature, checksum, probe, and lock as
 `update`); the running process keeps its old version until restart. Checks are
 throttled to one per 24 h per install root, and only an applied update (or a
 failed attempt) writes a line to stderr. Disable it with
-`WZE_WEBSEARCH_NO_UPDATE_CHECK=1`.
+`WZE_WEBSEARCH_NO_UPDATE_CHECK=1`; any other value, including `0` or unset,
+leaves it enabled.
+
+An MCP host that spawns this server passes only its configured `env` (an MCP
+stdio client inherits just `HOME`, `LOGNAME`, `PATH`, `SHELL`, `TERM`, and
+`USER`), so set `WZE_WEBSEARCH_NO_UPDATE_CHECK` in the server entry rather than
+relying on the ambient shell environment.
 
 Release archives and `SHA256SUMS` are published on the
 [Forgejo releases page](https://git.void.cold.at/ai-factory/wze-websearch/releases).
