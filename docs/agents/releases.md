@@ -146,6 +146,24 @@ read-only installs, unmarked paths, and npm installs; it never uses sudo.
   disables it, and the detached helper sets `WZE_WEBSEARCH_UPDATE_BACKGROUND=1`
   to avoid recursion.
 
+## Recovering a stuck install
+
+An install whose network budget is too strict cannot download its own fix: the
+release client in that version aborts the archive transfer and `wze-websearch
+update` fails before it can install the release that relaxes the budget. Do not
+hand-edit the install root; run the release installer, which never consults the
+installed updater:
+
+```
+WZE_WEBSEARCH_VERSION=0.8.2 bash scripts/install.sh
+```
+
+It fetches the assets with `curl`, verifies the pinned SSH signature and
+`SHA256SUMS`, probes the extracted executable's version, and swaps `current`.
+Confirm with `wze-websearch --version` and then `wze-websearch update` (which
+reports `current`). A symlinked or stale `~/.local/bin` wrapper is not involved:
+the wrapper reads `current` on every launch.
+
 ## Network budgets
 
 - The release list keeps a 10 s budget; that is an API call, not a body.
