@@ -1,0 +1,22 @@
+services:
+  mcp:
+    build: .
+    image: wze-websearch-mcp:local
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MCP_PORT:-3000}:3000"
+    environment:
+      SEARXNG_URL: ${SEARXNG_URL:?Set SEARXNG_URL to your SearXNG instance URL}
+    volumes:
+      - sessions:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  sessions:

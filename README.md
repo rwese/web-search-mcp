@@ -75,6 +75,9 @@ This exposes a `search` tool with query and filter options. For a shared
 Streamable HTTP server, run `wze-websearch-mcp --http 3000` after installing the
 package and setting `SEARXNG_URL`. The endpoint is `http://localhost:3000/mcp`.
 
+To deploy with Docker, see [Docker and Compose deployment](docs/docker.md)
+for local image builds, persistent sessions, and secure network defaults.
+
 ### pi
 
 The extension wrapper lives in `extensions/` and is loaded from a source

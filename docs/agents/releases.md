@@ -43,7 +43,11 @@ unapproved dependency postinstall scripts a warning instead of the pnpm 11
 default hard error (`ERR_PNPM_IGNORED_BUILDS`), which aborted the release
 workflow at `pnpm install`; we intentionally do not run those scripts.
 
-The one exception is the release staging step in `scripts/release.sh`: it runs
+Container builds also use the integrity-pinned npm lockfile: `Dockerfile`
+uses `npm ci` and `npm run build` without installing a second package manager.
+See `docs/docker.md`; container updates require rebuilding the image.
+
+The release staging step in `scripts/release.sh` runs
 `npm ci --omit=dev`
 inside the staging directory because the archive must contain a flat,
 symlink-free `node_modules/`, and pnpm's linked store layout is rejected by the
